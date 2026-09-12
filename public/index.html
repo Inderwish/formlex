@@ -4,28 +4,43 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="形意词库 FormLex：1,424 条美术与设计术语，支持主题词库、独立网站特色、冷暖筛选与可选 MCP 工具，为设计师和 agent 提供构建灵感。">
-  <meta name="theme-color" content="#f2f3ef">
+  <meta name="theme-color" content="#edf3f7">
   <title>形意词库 — FormLex</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" type="module"></script>
 </head>
 <body>
+  <canvas id="color-trail" aria-hidden="true"></canvas><svg class="paper-grain" aria-hidden="true"><filter id="paper-fiber"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#paper-fiber)"/></svg>
   <a href="#main" class="skip-link">跳到主要内容</a>
   <header class="app-header">
-    <a class="brand" href="#draw" aria-label="形意词库首页"><img src="/favicon.svg" alt="" width="36" height="36"><span>形意词库<small>FORMLEX · DESIGN LEXICON</small></span></a>
+    <a class="brand" href="#draw" aria-label="形意词库首页"><img src="/favicon.svg" alt="" width="36" height="36"><span>形意词库<small>FORMLEX / DESIGN ARCHIVE</small></span></a>
     <nav class="main-nav" aria-label="主要页面">
-      <button type="button" data-view="draw" aria-current="page">灵感抽取</button>
-      <button type="button" data-view="library">词库管理</button>
-      <button type="button" data-view="records">收藏与历史</button>
+      <button type="button" data-view="draw" aria-current="page"><span class="nav-index">01</span>灵感抽取</button>
+      <button type="button" data-view="library"><span class="nav-index">02</span>词库管理</button>
+      <button type="button" data-view="records"><span class="nav-index">03</span>收藏与历史</button>
     </nav>
     <div class="header-meta"><span class="connection">本机工作区</span><span class="version">DESIGN LEXICON</span></div>
   </header>
   <main id="main" tabindex="-1">
     <div id="global-error" class="error-banner" role="alert" hidden></div>
     <section id="view-draw" aria-labelledby="draw-title">
-      <div class="page-heading"><div><p class="eyebrow">THE COMPOSITION ROOM <span>08 + 01</span></p><h1 id="draw-title">灵感构成室<span class="heading-dot" aria-hidden="true">.</span></h1><p class="subtitle">八个设计维度，加一点属于网站的特色。</p></div><div class="library-count"><span class="count-caption">THE COLLECTION</span><div><strong id="keyword-count">—</strong><span>设计词条<br>九种观察角度</span></div></div></div>
+      <div class="composition-heading">
+        <div class="hero-copy"><p class="eyebrow">DESIGN STUDIES <span>形 / 意 / 构成</span></p><h1 id="draw-title">灵感构成室<span class="heading-dot" aria-hidden="true">↗</span></h1><p class="subtitle">采集不同的形，组合未曾相遇的意。</p><div class="hero-caption"><span class="archive-stamp">形意</span><span>八个设计维度 + 可选网站特色<br>给下一次设计，一组具体的线索。</span></div></div>
+        <div class="hero-lettering" aria-hidden="true">FORM<span>LEX</span><small>AN OPEN DESIGN LEXICON</small></div>
+        <div class="hero-specimen"><div class="specimen-label"><span>COLLECTION / <strong id="keyword-count">—</strong></span><span>NO. 009</span></div>
+          <div id="trail-surface" role="img" aria-label="色迹试验区：触屏可在此滑动绘画，也可使用下方预设轨迹按钮" aria-describedby="trail-status">
+            <svg class="crystal-study" viewBox="0 0 340 160" fill="none" aria-hidden="true"><defs><linearGradient id="ice" x1="112" y1="15" x2="205" y2="149" gradientUnits="userSpaceOnUse"><stop stop-color="#effcff"/><stop offset=".28" stop-color="#9ec7df"/><stop offset=".47" stop-color="#f5fcff"/><stop offset=".52" stop-color="#426880"/><stop offset=".64" stop-color="#cbe7f1"/><stop offset="1" stop-color="#869bbd"/></linearGradient><linearGradient id="leaf" x1="130" y1="35" x2="214" y2="131" gradientUnits="userSpaceOnUse"><stop stop-color="#cdf4fa"/><stop offset="1" stop-color="#427aca"/></linearGradient></defs>
+            <path d="M46 143V72Q46 37 83 12Q120 37 120 72V143M56 143V74Q56 45 83 24Q110 45 110 74V143" stroke="#6e8ba3" opacity=".45"/><path d="M44 143H307M83 12V149M21 114H318" stroke="#aec4d6" stroke-dasharray="2 5"/>
+            <path d="M153 34C179 13 215 45 206 68C238 66 249 101 226 119C207 143 179 121 164 130C136 143 112 115 128 94C101 70 124 31 153 34Z" fill="url(#ice)" stroke="#8cadc6"/>
+            <path d="M139 105C151 74 193 68 215 91C192 120 162 131 139 105Z" fill="url(#leaf)" opacity=".55"/><path d="M147 104L204 92M174 98L168 114M187 96L188 79" stroke="#e4f7fb" opacity=".7"/>
+            <ellipse cx="176" cy="86" rx="112" ry="34" transform="rotate(-17 176 86)" stroke="#4168a5"/><circle cx="282" cy="56" r="4" fill="#315bd1"/><path d="M285 17V39M274 28H296M278 21L292 35M278 35L292 21" stroke="#2445a0"/><path d="M132 134L126 151H253L263 138" stroke="#98aec3"/>
+            </svg><span class="surface-caption">MOVE / DRAW / LET GO</span>
+          </div>
+        </div>
+      </div>
       <div class="workspace">
+        <details id="controls-drawer" class="settings-desk" open><summary><span><b>01</b> 抽取参数</span><span class="drawer-symbol" aria-hidden="true">＋</span></summary><div class="desk-body">
         <section class="source-panel" aria-label="选择抽取词库"><div><span class="eyebrow">YOUR COLLECTION</span><label for="draw-library">从哪一份词库取样</label></div><select id="draw-library" aria-describedby="pool-summary"><option value="all">全部词库</option></select><button id="manage-libraries" class="button" type="button"><span data-icon="sliders"></span>自选词库</button><p id="pool-summary" class="control-caption" role="status">正在读取词库…</p></section>
         <aside class="config-panel" aria-label="抽取设置">
           <div class="panel-title"><p class="eyebrow">SAMPLING DESK</p><h2>构成参数</h2><span class="small-index">选定范围，再让灵感相遇。</span></div>
@@ -34,20 +49,26 @@
             <label class="mode-option"><input type="radio" name="mode" value="free"><span><strong>自由模式</strong><small>让不同风格相遇</small></span><span class="radio-dot" aria-hidden="true"></span></label>
           </fieldset>
           <fieldset class="count-setting"><legend>常规维度词条数</legend><div id="draw-count" class="segmented" role="group" aria-label="每维度词条数"><button type="button" data-count="1" aria-pressed="false">1 条</button><button type="button" data-count="2" aria-pressed="false">2 条</button><button type="button" data-count="3" aria-pressed="false">3 条</button><button type="button" data-count="4" aria-pressed="false">4 条</button><button type="button" data-count="5" aria-pressed="false">5 条</button><button type="button" data-count="random" aria-label="随机 2–3 条" aria-pressed="true">2–3</button></div><p class="control-caption" id="count-caption">各维度独立随机</p></fieldset>
-          <div class="draw-actions"><button id="draw-button" class="primary-button" type="button"><span data-icon="shuffle"></span><span id="draw-button-label">抽取一组灵感</span></button><p id="lock-hint">每个维度随机抽取 2–3 条</p></div>
+
           <fieldset class="dimensions-field"><legend>取样范围 <span id="selected-count">8 / 8</span></legend><div id="dimension-options" class="dimension-options"></div></fieldset>
         </aside>
         <section class="creative-options" aria-label="色彩与网站特色">
           <fieldset class="temperature-setting"><legend>色彩倾向</legend><div id="color-temperature" class="segmented" role="group" aria-label="色彩温度"><button type="button" data-temperature="random" aria-pressed="true">随机</button><button type="button" data-temperature="cool" aria-pressed="false">冷色调</button><button type="button" data-temperature="warm" aria-pressed="false">暖色调</button></div><p class="control-caption">只筛选色彩维度 · 中性与混合配色仅参与随机</p></fieldset>
           <div class="feature-setting"><div class="feature-heading"><label class="feature-toggle"><input id="feature-enabled" type="checkbox" aria-describedby="feature-pool-count"><span>添加特色<small>SIGNATURE ELEMENT</small></span></label><label class="feature-count-label" for="feature-count">独立数量<select id="feature-count" disabled><option value="1">1 条</option><option value="2">2 条</option><option value="3">3 条</option><option value="4">4 条</option><option value="5">5 条</option></select></label></div><p class="control-caption" id="feature-pool-count">150 条独立候选 · 不受主题或个人词库限制</p></div>
         </section>
+        <div class="sampling-route" aria-label="抽取路径预览"><span>词库</span><i aria-hidden="true">→</i><span id="route-dimensions">8 维</span><i aria-hidden="true">→</i><strong id="route-count">16–24 条</strong></div>
+          <p id="lock-hint" class="control-caption">常规维度随机 2–3 条</p>
+        <details class="surface-settings"><summary>表面与色迹 <span>SURFACE LAB</span></summary><label class="texture-control" for="texture-strength">纸面纹理 <output id="texture-value">18%</output><input id="texture-strength" type="range" min="0" max="100" step="1" value="18"></label><div class="trail-controls"><label><input id="trail-enabled" type="checkbox" checked>临时色迹</label><button id="trail-clear" class="text-button" type="button">清空</button></div><div class="trail-presets"><select id="trail-preset" aria-label="预设色迹"><option value="orbit">原子轨道</option><option value="arc">尖拱轮廓</option><option value="wave">流动曲线</option></select><button id="trail-preview" class="button" type="button">绘制</button></div><p id="trail-status" class="control-caption">鼠标轻划留迹；触屏请在顶部试验区绘画。</p></details>
+        </div></details>
         <div class="results-column">
-          <div class="results-toolbar"><div><span class="section-index">01</span><h2>本次构成</h2><span id="result-meta" class="result-meta">准备就绪</span></div><div class="toolbar-actions"><button id="favorite-current" class="button" type="button" disabled><span data-icon="star"></span><span>收藏组合</span></button><button id="copy-text" class="button" type="button" disabled><span data-icon="copy"></span>复制文本</button></div></div>
-          <div class="view-tools"><div class="view-tool-group"><span class="tool-label">取景</span><div class="segmented" id="view-mode" role="group" aria-label="取景方式"><button type="button" data-framing="overview" aria-pressed="true">全览</button><button type="button" data-framing="focus" aria-pressed="false">单维聚焦</button></div></div><div class="view-tool-group spacing-tools"><span class="tool-label">留白</span><div class="segmented" id="spacing-mode" role="group" aria-label="留白档位"><button type="button" data-spacing="compact" aria-pressed="false">紧凑</button><button type="button" data-spacing="balanced" aria-pressed="true">均衡</button><button type="button" data-spacing="spacious" aria-pressed="false">舒展</button></div><button id="measure-toggle" class="measure-button" type="button" aria-pressed="false" title="显示实际卡片间距与内边距"><span data-icon="ruler"></span>标尺</button></div></div>
+          <div class="results-toolbar"><div><span class="section-index">02</span><h2>灵感展板</h2><span id="result-meta" class="result-meta">准备就绪</span></div><div class="toolbar-actions"><button id="draw-button" class="primary-button" type="button"><span data-icon="shuffle"></span><span id="draw-button-label">抽取一组灵感</span></button><button id="favorite-current" class="button" type="button" disabled><span data-icon="star"></span><span>收藏组合</span></button><button id="copy-text" class="button" type="button" disabled><span data-icon="copy"></span>复制文本</button></div></div>
+          <div class="view-tools"><div class="view-tool-group"><span class="tool-label">查看</span><div class="segmented" id="view-mode" role="group" aria-label="取景方式"><button type="button" data-framing="overview" aria-pressed="true">活字盘</button><button type="button" data-framing="focus" aria-pressed="false">单维聚焦</button></div></div><div class="board-tools"><button id="curate-toggle" type="button" class="measure-button" aria-pressed="false">编排</button><button id="inspection-toggle" type="button" class="measure-button" aria-pressed="false" aria-describedby="inspection-status">固定检视</button></div><div class="view-tool-group spacing-tools"><span class="tool-label">留白</span><div class="segmented" id="spacing-mode" role="group" aria-label="留白档位"><button type="button" data-spacing="compact" aria-pressed="false">紧凑</button><button type="button" data-spacing="balanced" aria-pressed="true">均衡</button><button type="button" data-spacing="spacious" aria-pressed="false">舒展</button></div><button id="measure-toggle" class="measure-button" type="button" aria-pressed="false" title="显示实际卡片间距与内边距"><span data-icon="ruler"></span>标尺</button></div></div>
+          <div id="inspection-status" class="inspection-banner" role="status" hidden></div>
+          <section id="specimen-reader" class="specimen-reader" aria-label="词条阅读区" aria-live="polite"><div class="reader-index"><span id="reader-dimension">STUDY / 01</span><span class="reader-mark" aria-hidden="true">↗</span></div><div><h3 id="reader-title">点击一个术语，展开设计说明</h3><p id="reader-description">在展板中选取线索，逐步确定主导方向与应用范围。</p></div></section>
           <div id="draw-error" class="error-banner" role="alert" hidden></div>
           <div id="draw-warnings" class="warning-banner" role="status" hidden></div>
-          <div class="results-stage"><nav id="dimension-index" class="dimension-index" aria-label="聚焦设计维度"></nav><div class="viewfinder" id="viewfinder" data-framing="overview" data-spacing="balanced"><div class="frame-caption"><span id="frame-caption">全览 / 八个维度</span><span id="sample-id">SAMPLE —</span></div><div id="measure-readout" class="measure-readout" role="status" hidden></div><div id="result-grid" class="result-grid" aria-live="polite"><div class="empty-state"><span data-icon="grid"></span><h3>正在读取本地词库</h3><p>马上开始你的第一次灵感采样。</p></div></div><div class="frame-footnote"><span>锁定一个维度，保留整组词条。</span><span>取景改变显示范围，复制保留完整组合。</span></div></div></div>
-          <section class="output-panel" aria-labelledby="output-title"><div class="output-heading"><div><span class="section-index">02</span><h2 id="output-title">交给 agent</h2><span class="output-caption">THE DESIGN BRIEF</span></div><div class="output-controls"><div class="segmented" role="group" aria-label="输出格式"><button type="button" id="format-text" aria-pressed="true">文本</button><button type="button" id="format-json" aria-pressed="false">JSON</button></div><button id="copy-output" class="icon-button" type="button" aria-label="复制当前格式的结果" disabled><span data-icon="copy"></span></button></div></div><pre id="output-preview" tabindex="0">抽取后，可在这里查看和复制完整结果。</pre><details class="agent-note"><summary>通过 HTTP 获取同一份灵感 <span aria-hidden="true">↗</span></summary><p>与网页共用词库、规则和记录。</p><code>POST /api/draw</code><pre>{"mode":"coordinated"}</pre><p>完整接口示例见项目 README。</p></details></section>
+          <div class="results-stage"><nav id="dimension-index" class="dimension-index" aria-label="聚焦设计维度"></nav><div class="viewfinder" id="viewfinder" data-framing="overview" data-spacing="balanced"><div class="frame-caption"><span id="frame-caption">展板 / 八个维度</span><span id="sample-id">SAMPLE —</span></div><div id="measure-readout" class="measure-readout" role="status" hidden></div><div id="result-grid" class="result-grid" aria-live="polite"><div class="empty-state"><span data-icon="grid"></span><h3>正在读取本地词库</h3><p>马上开始你的第一次灵感采样。</p></div></div><div class="frame-footnote"><span>点击术语阅读说明；锁定保留整组。</span><span>编排只改变展板顺序，复制与收藏保留完整记录。</span></div></div></div>
+          <section class="output-panel" aria-labelledby="output-title"><div class="output-heading"><div><span class="section-index">03</span><h2 id="output-title">交给 agent</h2><span class="output-caption">THE DESIGN BRIEF</span></div><div class="output-controls"><div class="segmented" role="group" aria-label="输出格式"><button type="button" id="format-text" aria-pressed="true">文本</button><button type="button" id="format-json" aria-pressed="false">JSON</button></div><button id="copy-output" class="icon-button" type="button" aria-label="复制当前格式的结果" disabled><span data-icon="copy"></span></button></div></div><pre id="output-preview" tabindex="0">抽取后，可在这里查看和复制完整结果。</pre><details class="agent-note"><summary>通过 HTTP 获取同一份灵感 <span aria-hidden="true">↗</span></summary><p>与网页共用词库、规则和记录。</p><code>POST /api/draw</code><pre>{"mode":"coordinated"}</pre><p>完整接口示例见项目 README。</p></details></section>
         </div>
       </div>
     </section>

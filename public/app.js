@@ -22,10 +22,12 @@ $$('[data-icon]').forEach(node => { node.innerHTML = icon(node.dataset.icon); })
 
 const state = { catalog: { dimensions: [], keywords: [], libraries: [] }, selected: [], libraryId: 'all', libraryLimit: 80, collectionLimit: 80, collectionSelection: new Set(), collectionBusy: false, mode: 'coordinated', countPerDimension: 'random', locked: {}, result: null,
   history: [], favorites: [], view: 'draw', recordKind: 'favorites', format: 'text', busy: false, featureCount: 1, colorTemperature: 'random',
-  editing: null, conflictSelection: new Set(), detail: null, framing: 'overview', focusDimension: 'style', spacing: 'balanced', measuring: false };
+  editing: null, conflictSelection: new Set(), detail: null, framing: 'overview', focusDimension: 'style', spacing: 'balanced', measuring: false,
+  boardOrder: [], curating: false, activeKeyword: null, inspecting: false, pendingDraw: null, pendingCount: 0 };
 const dim = id => state.catalog.dimensions.find(d => d.id === id);
 const groups = items => state.catalog.dimensions.map(d => ({ ...d, items: items.filter(k => k.dimension === d.id) })).filter(g => g.items.length);
 const idsByDimension = items => Object.fromEntries(groups(items).map(g => [g.id, g.items.map(k => k.id)]));
+const boardGroups = () => groups(state.result?.items ?? []).sort((a,b) => state.boardOrder.indexOf(a.id) - state.boardOrder.indexOf(b.id));
 // Avoid leading spaces that rich-text editors may serialize as HTML whitespace entities.
 const textOf = record => record.text.replace(/^ {2}(?=\S)/gm, '');
 const modeName = mode => mode === 'coordinated' ? '协调模式' : '自由模式';
@@ -169,7 +171,23 @@ function updateDrawControls() {
   $$('#dimension-options input, input[name="mode"], #draw-count button, #draw-library, #manage-libraries, #feature-enabled').forEach(input => { input.disabled = state.busy; });
   $$('#draw-count button').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.count === String(state.countPerDimension))); });
   $('#count-caption').textContent = state.countPerDimension === 'random' ? '各维度独立随机' : '锁定组保持原来的词条数';
-  $$('[data-reroll], [data-lock]').forEach(button => { button.disabled = state.busy || !state.selected.includes(button.dataset.reroll ?? button.dataset.lock) || (button.hasAttribute('data-reroll') && Boolean(state.locked[button.dataset.reroll])); });
+  $$('[data-reroll], [data-lock]').forEach(button => { button.disabled = state.busy || state.inspecting || !state.selected.includes(button.dataset.reroll ?? button.dataset.lock) || (button.hasAttribute('data-reroll') && Boolean(state.locked[button.dataset.reroll])); });
+  const bounds = state.selected.map(d => {
+    const fixed = state.locked[d]?.length;
+    if (fixed) return [fixed, fixed];
+    if (d === 'feature') return [state.featureCount, state.featureCount];
+    if (state.countPerDimension !== 'random') return [state.countPerDimension, state.countPerDimension];
+    const available = poolKeywords().filter(k => k.dimension === d && (d !== 'color' || state.colorTemperature === 'random' || k.temperature === state.colorTemperature)).length;
+    return [2, available >= 3 ? 3 : 2];
+  });
+  const low = bounds.reduce((n,p) => n + p[0], 0), high = bounds.reduce((n,p) => n + p[1], 0);
+  $('#route-dimensions').textContent = `${state.selected.length} 维`;
+  $('#route-count').textContent = `预计 ${low === high ? low : `${low}–${high}`} 条`;
+  $('#inspection-toggle').disabled = state.busy || !state.result;
+  $('#inspection-toggle').textContent = state.inspecting ? '恢复显示' : '固定检视';
+  $('#inspection-toggle').setAttribute('aria-pressed', String(state.inspecting));
+  $('#inspection-status').hidden = !state.inspecting;
+  $('#inspection-status').textContent = state.pendingCount ? `当前快照已固定；本页另有 ${state.pendingCount} 组抽取已保存到历史。恢复显示后接收其中最新一组。` : '当前快照已固定。只暂停本页结果显示，新的抽取仍可保存；HTTP / MCP 继续工作。';
   if (state.result) {
     const count = groups(state.result.items).length;
     const sameDimensions = count === state.selected.length && state.result.items.every(k => state.selected.includes(k.dimension));
@@ -184,25 +202,39 @@ function updateFavoriteButton() {
   button.setAttribute('aria-pressed', String(saved));
   button.innerHTML = `${icon('star')}<span>${saved ? '已收藏' : '收藏组合'}</span>`;
 }
+function renderReader() {
+  let items = state.result?.items ?? [];
+  if (state.framing === 'focus') items = items.filter(k => k.dimension === state.focusDimension);
+  const keyword = items.find(k => k.id === state.activeKeyword) ?? items[0];
+  if (!keyword) return;
+  state.activeKeyword = keyword.id;
+  $('#reader-dimension').textContent = `${dim(keyword.dimension).name} / ${keyword.id}`;
+  $('#reader-title').textContent = keyword.name;
+  $('#reader-description').textContent = keyword.description;
+  $$('[data-inspect]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.inspect === keyword.id)));
+}
 function renderDraw() {
   if (state.result) {
-    $('#result-grid').innerHTML = groups(state.result.items).map(group => {
+    $('#result-grid').innerHTML = boardGroups().map((group, position, list) => {
       const locked = Boolean(state.locked[group.id]);
       const index = state.catalog.dimensions.findIndex(d => d.id === group.id) + 1;
-      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索${group.id === 'feature' ? ' · 独立特色池' : ''}</span>${locked ? '<span class="locked-label">整组已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><div class="keyword-stack">${group.items.map(k => `<section class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p></section>`).join('')}</div></article>`;
+      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索${group.id === 'feature' ? ' · 独立特色池' : ''}</span>${locked ? '<span class="locked-label">已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><div class="keyword-stack">${group.items.map((k, i) => `<section class="keyword-term"><button type="button" class="term-slot" data-inspect="${k.id}" aria-pressed="false" aria-label="阅读${escape(k.name)}"><span aria-hidden="true">${String(i + 1).padStart(2,'0')}</span><strong class="term-name">${escape(k.name)}</strong><small aria-hidden="true">↗</small></button><p>${escape(k.description)}</p></section>`).join('')}</div><div class="curation-actions"><button type="button" data-dimension="${group.id}" data-move="-1" ${position === 0 ? 'disabled' : ''} aria-label="前移${group.name}">← 前移</button><button type="button" data-dimension="${group.id}" data-move="1" ${position === list.length - 1 ? 'disabled' : ''} aria-label="后移${group.name}">后移 →</button></div></article>`;
     }).join('');
-    $('#dimension-index').innerHTML = groups(state.result.items).map(group => `<button type="button" data-focus="${group.id}" aria-label="聚焦${group.name}" aria-pressed="false"><span>${String(state.catalog.dimensions.findIndex(d => d.id === group.id) + 1).padStart(2, '0')}</span><small>${group.name}</small></button>`).join('');
+    $('#dimension-index').innerHTML = boardGroups().map(group => `<button type="button" data-focus="${group.id}" aria-label="聚焦${group.name}" aria-pressed="false"><span>${String(state.catalog.dimensions.findIndex(d => d.id === group.id) + 1).padStart(2, '0')}</span><small>${group.name}</small></button>`).join('');
   }
   $('#copy-text').disabled = !state.result;
   $('#copy-output').disabled = !state.result;
   updateFavoriteButton(); updateDrawControls(); renderOutput(); renderFrame();
 }
 function renderFrame() {
-  const available = groups(state.result?.items ?? []);
+  const available = boardGroups();
   if (!available.some(group => group.id === state.focusDimension)) state.focusDimension = available[0]?.id ?? 'style';
   $('#viewfinder').dataset.framing = state.framing;
   $('#viewfinder').dataset.spacing = state.spacing;
   $('#viewfinder').dataset.measure = String(state.measuring);
+  $('#viewfinder').dataset.curating = String(state.curating);
+  $('#curate-toggle').setAttribute('aria-pressed', String(state.curating));
+  $('#curate-toggle').disabled = !state.result;
   $$('.result-card').forEach(card => { card.hidden = state.framing === 'focus' && card.dataset.dimension !== state.focusDimension; });
   $$('[data-focus]').forEach(button => { button.setAttribute('aria-pressed', String(state.framing === 'focus' && button.dataset.focus === state.focusDimension)); });
   $$('[data-framing]').filter(button => button.tagName === 'BUTTON').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.framing === state.framing)); button.disabled = !state.result; });
@@ -210,9 +242,9 @@ function renderFrame() {
   $('#measure-toggle').setAttribute('aria-pressed', String(state.measuring));
   $('#measure-readout').hidden = !state.measuring;
   const focused = available.find(group => group.id === state.focusDimension);
-  $('#frame-caption').textContent = state.framing === 'overview' ? `全览 / ${available.length} 个维度` : `取景 ${String(available.indexOf(focused) + 1).padStart(2, '0')} / ${available.length} · ${focused?.name ?? ''}`;
+  $('#frame-caption').textContent = state.framing === 'overview' ? `${state.curating ? '编排' : '展板'} / ${available.length} 个维度` : `取景 ${String(available.indexOf(focused) + 1).padStart(2, '0')} / ${available.length} · ${focused?.name ?? ''}`;
   $('#sample-id').textContent = state.result ? `SAMPLE ${state.result.id.slice(0, 8).toUpperCase()}` : 'SAMPLE —';
-  renderMeasurement();
+  renderMeasurement(); renderReader();
 }
 function renderMeasurement() {
   if (!state.measuring || !state.result) return;
@@ -236,23 +268,28 @@ function drawInput(target) {
   const locked = target ? Object.fromEntries(Object.entries(current).filter(([dimension]) => dimension !== target)) : { ...state.locked };
   return { dimensions: [...state.selected], libraryId: state.libraryId, mode: state.mode, countPerDimension: state.countPerDimension, featureCount: state.featureCount, colorTemperature: state.colorTemperature, locked, current };
 }
+function acceptDraw(record, input, tool) {
+  if (tool) {
+    state.libraryId = record.library?.id ?? 'all';
+    state.selected = [...new Set(record.items.map(k => k.dimension))]; state.mode = record.mode; state.countPerDimension = record.countPerDimension;
+    state.featureCount = record.featureCount ?? 1; state.colorTemperature = record.colorTemperature ?? 'random'; rememberOptions();
+    state.locked = Object.fromEntries(Object.entries(input.locked ?? {}).map(([d, ids]) => [d, Array.isArray(ids) ? ids : [ids]]));
+    $$('input[name="mode"]').forEach(node => { node.checked = node.value === state.mode; });
+    renderLibraryChoices();
+  }
+  state.result = record;
+  $('#draw-warnings').textContent = record.warnings.join(' '); $('#draw-warnings').hidden = !record.warnings.length;
+  renderDraw();
+}
 async function performDraw(input = drawInput(), { tool = false } = {}) {
   if (state.busy) throw Error('正在执行抽取，请稍后重试。');
   state.busy = true; updateDrawControls(); updateFavoriteButton(); showError('#draw-error', ''); showError('#global-error', '');
   try {
     const record = await api('/api/draw', 'POST', input);
-    if (tool) {
-      state.libraryId = record.library?.id ?? 'all';
-      state.selected = [...new Set(record.items.map(k => k.dimension))]; state.mode = record.mode; state.countPerDimension = record.countPerDimension;
-      state.featureCount = record.featureCount ?? 1; state.colorTemperature = record.colorTemperature ?? 'random'; rememberOptions();
-      state.locked = Object.fromEntries(Object.entries(input.locked ?? {}).map(([d, ids]) => [d, Array.isArray(ids) ? ids : [ids]]));
-      $$('#dimension-options input').forEach(node => { node.checked = state.selected.includes(node.value); });
-      $$('input[name="mode"]').forEach(node => { node.checked = node.value === state.mode; });
-      renderLibraryChoices();
-    }
-    state.result = record; state.history = [record, ...state.history.filter(r => r.id !== record.id)].slice(0, 100);
-    $('#draw-warnings').textContent = record.warnings.join(' '); $('#draw-warnings').hidden = !record.warnings.length;
-    renderDraw(); renderRecords();
+    state.history = [record, ...state.history.filter(r => r.id !== record.id)].slice(0, 100);
+    if (state.inspecting && state.result) { state.pendingDraw = { record, input, tool }; state.pendingCount++; }
+    else acceptDraw(record, input, tool);
+    renderRecords();
     if (tool) await switchView('draw');
     return record;
   } catch (error) { showError('#draw-error', error.message); throw error; }
@@ -354,9 +391,38 @@ on('#view-mode', 'click', event => { const button = event.target.closest('button
 on('#dimension-index', 'click', event => { const button = event.target.closest('[data-focus]'); if (!button) return; state.focusDimension = button.dataset.focus; state.framing = 'focus'; renderFrame(); });
 on('#spacing-mode', 'click', event => { const button = event.target.closest('button[data-spacing]'); if (!button) return; state.spacing = button.dataset.spacing; renderFrame(); });
 on('#measure-toggle', 'click', () => { state.measuring = !state.measuring; renderFrame(); });
+on('#curate-toggle', 'click', () => { state.curating = !state.curating; renderFrame(); });
+on('#inspection-toggle', 'click', () => {
+  state.inspecting = !state.inspecting;
+  if (!state.inspecting && state.pendingDraw) {
+    const { record, input, tool } = state.pendingDraw;
+    acceptDraw(record, input, tool);
+    state.pendingDraw = null; state.pendingCount = 0;
+  }
+  updateDrawControls();
+});
 window.addEventListener('resize', renderMeasurement);
 on('#draw-button', 'click', () => performDraw().catch(() => {}));
 on('#result-grid', 'click', event => {
+  const term = event.target.closest('[data-inspect]');
+  if (term) {
+    state.activeKeyword = term.dataset.inspect; renderReader();
+    const reader = $('#specimen-reader'), bounds = reader.getBoundingClientRect();
+    if (bounds.top < 0 || bounds.bottom > innerHeight) reader.scrollIntoView({block:'nearest',behavior:'instant'});
+    return;
+  }
+  const move = event.target.closest('[data-move]');
+  if (move && !move.disabled) {
+    const order = boardGroups().map(g => g.id), index = order.indexOf(move.dataset.dimension), next = index + Number(move.dataset.move);
+    if (next < 0 || next >= order.length) return;
+    [order[index], order[next]] = [order[next], order[index]];
+    state.boardOrder = [...order, ...state.boardOrder.filter(d => !order.includes(d))];
+    try { localStorage.setItem('formlex.boardOrder', JSON.stringify(state.boardOrder)); } catch { /* Ordering remains usable. */ }
+    renderDraw();
+    const buttons = $$(`[data-move][data-dimension="${move.dataset.dimension}"]`);
+    (buttons.find(b => b.dataset.move === move.dataset.move && !b.disabled) ?? buttons.find(b => !b.disabled))?.focus();
+    return;
+  }
   const button = event.target.closest('[data-lock], [data-reroll]'); if (!button || button.disabled) return;
   if (button.dataset.lock) {
     const dimension = button.dataset.lock;
@@ -442,6 +508,7 @@ async function init() {
     state.catalog = await api('/api/catalog');
     if (state.catalog.apiVersion !== 4) throw Error('服务版本需要更新。请关闭旧服务窗口，重新双击桌面的「启动灵感采样.bat」，再刷新页面。');
     state.selected = regularDimensions().map(d => d.id);
+    state.boardOrder = state.catalog.dimensions.map(d => d.id);
     try {
       state.libraryId = localStorage.getItem('formlex.libraryId') ?? 'all';
       const savedCount = localStorage.getItem('formlex.countPerDimension');
@@ -451,6 +518,8 @@ async function init() {
       state.featureCount = ['1','2','3','4','5'].includes(featureCount) ? Number(featureCount) : 1;
       const colorTemperature = localStorage.getItem('formlex.colorTemperature');
       state.colorTemperature = ['cool','warm'].includes(colorTemperature) ? colorTemperature : 'random';
+      const boardOrder = JSON.parse(localStorage.getItem('formlex.boardOrder') ?? '[]');
+      if (Array.isArray(boardOrder)) state.boardOrder = [...new Set([...boardOrder.filter(d => state.boardOrder.includes(d)), ...state.boardOrder])];
     } catch { /* Local storage is optional. */ }
     await refreshCatalog(); await refreshRecords();
     applyLibrary(state.libraryId);
@@ -463,4 +532,90 @@ async function init() {
     $('#result-grid').innerHTML = `<div class="empty-state">${icon('grid')}<h3>暂时无法读取词库</h3><p>确认本地服务已启动，然后刷新页面重试。</p></div>`;
   }
 }
+function setupSurface() {
+  const canvas = $('#color-trail'), context = canvas.getContext('2d');
+  const surface = $('#trail-surface'), reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  let enabled = true, texture = 18, segments = [], frame = 0, presetFrame = 0, previous = null;
+  try {
+    enabled = localStorage.getItem('formlex.trailEnabled') !== 'false';
+    const stored = localStorage.getItem('formlex.texture');
+    if (stored !== null && Number.isFinite(Number(stored))) texture = Math.max(0, Math.min(100, Number(stored)));
+  } catch { /* Surface preferences are optional. */ }
+  const remember = (key, value) => { try { localStorage.setItem(`formlex.${key}`, String(value)); } catch { /* Keep current controls usable. */ } };
+  function setTexture(value) {
+    document.documentElement.style.setProperty('--texture', String(value / 250));
+    $('#texture-strength').value = String(value); $('#texture-value').textContent = `${value}%`;
+  }
+  setTexture(texture);
+  on('#texture-strength', 'input', () => { texture = Number($('#texture-strength').value); setTexture(texture); remember('texture', texture); });
+  if (!context) { $('#trail-enabled').disabled = true; $('#trail-preview').disabled = true; $('#trail-clear').disabled = true; $('#trail-status').textContent = '此浏览器无法绘制色迹，纸面纹理仍可调节。'; return; }
+  function clear() {
+    cancelAnimationFrame(frame); cancelAnimationFrame(presetFrame); frame = presetFrame = 0;
+    segments = []; previous = null; context.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  function resize() {
+    clear(); const ratio = Math.min(devicePixelRatio || 1, 1.5);
+    canvas.width = Math.ceil(innerWidth * ratio); canvas.height = Math.ceil(innerHeight * ratio);
+    canvas.style.width = `${innerWidth}px`; canvas.style.height = `${innerHeight}px`; context.setTransform(ratio,0,0,ratio,0,0);
+  }
+  function render(now) {
+    frame = 0; context.clearRect(0,0,canvas.width,canvas.height);
+    segments = segments.filter(s => s.static || now - s.time < 1100);
+    for (const s of segments) {
+      const opacity = s.static ? .42 : .55 * Math.max(0, 1 - (now - s.time) / 1100);
+      const color = `hsla(${s.hue},78%,58%,${opacity})`;
+      context.beginPath(); context.moveTo(s.x1,s.y1); context.lineTo(s.x2,s.y2);
+      context.lineWidth = 10; context.lineCap = 'round'; context.strokeStyle = color;
+      context.shadowColor = color; context.shadowBlur = 12; context.stroke();
+    }
+    if (segments.some(s => !s.static)) frame = requestAnimationFrame(render);
+  }
+  function add(x1,y1,x2,y2,time,staticTrail = false,index = 0) {
+    segments.push({x1,y1,x2,y2,time,static:staticTrail,hue:195 + (index % 50)});
+    if (segments.length > 110) segments.splice(0,segments.length - 110);
+    if (!frame) frame = requestAnimationFrame(render);
+  }
+  function update() {
+    $('#trail-enabled').checked = enabled; $('#trail-preview').disabled = !enabled;
+    surface.classList.toggle('drawing-enabled', enabled && !reduced.matches);
+    $('#trail-status').textContent = !enabled ? '色迹已关闭。开启后可使用鼠标、触屏或预设轨迹。' : reduced.matches ? '已停用动态跟随；预设只绘制静态色迹，可随时清空。' : '轻划鼠标，色迹约一秒后消散。触屏请在顶部试验区绘画，键盘可选预设。';
+  }
+  on('#trail-enabled', 'change', () => { enabled = $('#trail-enabled').checked; clear(); remember('trailEnabled', enabled); update(); });
+  on('#trail-clear', 'click', () => { clear(); update(); $('#trail-status').textContent = '色迹已清空。' + $('#trail-status').textContent; });
+  document.addEventListener('pointermove', event => {
+    if (!enabled || reduced.matches || document.hidden || $('dialog[open]')) { previous = null; return; }
+    if (event.pointerType !== 'mouse' && (!surface.contains(event.target) || !event.buttons)) { previous = null; return; }
+    const time = performance.now(), point = {x:event.clientX,y:event.clientY,time,id:event.pointerId};
+    if (previous && previous.id === point.id && time - previous.time < 160 && Math.hypot(point.x-previous.x,point.y-previous.y) < 140) add(previous.x,previous.y,point.x,point.y,time,false,Math.floor(time / 12));
+    previous = point;
+  }, {passive:true});
+  surface.addEventListener('pointerdown', event => { if (enabled && !reduced.matches) { surface.setPointerCapture(event.pointerId); previous = {x:event.clientX,y:event.clientY,time:performance.now(),id:event.pointerId}; } });
+  surface.addEventListener('pointerup', () => { previous = null; });
+  surface.addEventListener('pointercancel', () => { previous = null; });
+  on('#trail-preview', 'click', () => {
+    if (!enabled) return;
+    clear(); surface.scrollIntoView({block:'center',behavior:'instant'});
+    presetFrame = requestAnimationFrame(() => {
+      presetFrame = 0; if (!enabled || document.hidden) return;
+      const rect = surface.getBoundingClientRect(), cx = rect.x + rect.width / 2, cy = rect.y + rect.height / 2;
+      const w = Math.min(rect.width * .4, 145), h = rect.height * .34, time = performance.now();
+      const points = Array.from({length:65}, (_,i) => {
+        const t = i / 64;
+        if ($('#trail-preset').value === 'wave') return [cx + (2*t-1)*w,cy + Math.sin(t * Math.PI * 3)*h];
+        if ($('#trail-preset').value === 'arc') return [cx + (2*t-1)*w*.65,cy + h - Math.sin(Math.PI*t)*h*2];
+        return [cx + Math.cos(t*Math.PI*2)*w,cy + Math.sin(t*Math.PI*2)*h - Math.cos(t*Math.PI*2)*h*.35];
+      });
+      for (let i=1;i<points.length;i++) add(...points[i-1],...points[i],time,reduced.matches,i);
+      $('#trail-status').textContent = reduced.matches ? '静态预设已绘制，可清空或改选另一条轨迹。' : '预设色迹已绘制，约一秒后消散。';
+    });
+  });
+  reduced.addEventListener('change', () => { clear(); update(); });
+  window.addEventListener('resize', resize);
+  window.addEventListener('scroll', () => { if (!presetFrame) clear(); }, {passive:true});
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clear(); });
+  window.addEventListener('pagehide', clear);
+  resize(); update();
+}
+setupSurface();
+if (matchMedia('(max-width: 900px)').matches) $('#controls-drawer').open = false;
 await init();

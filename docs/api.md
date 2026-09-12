@@ -116,4 +116,6 @@ curl.exe --json '{"libraryId":"classical","dimensions":["style","color"],"countP
 
 兼容的浏览器还会注册 `read_design_catalog` 和 `draw_design_inspiration` 两个页面工具。它们调用同一 HTTP API；浏览器不支持该可选接口时，不影响网页或 HTTP 调用。该集成需要宿主提供 `document.modelContext.registerTool`，实际可用性取决于宿主支持。
 
+工作台处于“固定检视”时，页面抽取工具仍返回并保存新结果，网页暂存最新一组而保留正在阅读的旧快照；点击“恢复显示”后接收新结果。HTTP 与独立 MCP 调用始终正常保存，可在记录页刷新查看。展板编排和纸面、色迹设置仅属于浏览器显示偏好，不改变接口响应与历史快照。
+
 [返回项目介绍](../README.md)
