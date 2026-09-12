@@ -1,0 +1,11 @@
+/data/
+node_modules/
+.env
+.env.*
+!.env.example
+*.tmp
+*.update-tmp
+/preview/*
+!/preview/desktop.png
+!/preview/focus.png
+!/preview/mobile-focus.png

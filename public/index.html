@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="从八个前端设计维度采样灵感，锁定、重组，并与 agent 共用可编辑的本地词库。">
+  <meta name="theme-color" content="#f2f3ef">
+  <title>灵感采样 — Design Seed</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <a href="#main" class="skip-link">跳到主要内容</a>
+  <header class="app-header">
+    <a class="brand" href="#draw" aria-label="灵感采样首页"><img src="/favicon.svg" alt="" width="36" height="36"><span>灵感采样<small>DESIGN SEED · STUDIO</small></span></a>
+    <nav class="main-nav" aria-label="主要页面">
+      <button type="button" data-view="draw" aria-current="page">灵感抽取</button>
+      <button type="button" data-view="library">词库管理</button>
+      <button type="button" data-view="records">收藏与历史</button>
+    </nav>
+    <div class="header-meta"><span class="connection">本机工作区</span><span class="version">EDITION 03</span></div>
+  </header>
+  <main id="main" tabindex="-1">
+    <div id="global-error" class="error-banner" role="alert" hidden></div>
+    <section id="view-draw" aria-labelledby="draw-title">
+      <div class="page-heading"><div><p class="eyebrow">THE COMPOSITION ROOM <span>01 — 08</span></p><h1 id="draw-title">灵感构成室<span class="heading-dot" aria-hidden="true">.</span></h1><p class="subtitle">从八个维度取样，组合下一次设计。</p></div><div class="library-count"><span class="count-caption">THE COLLECTION</span><div><strong id="keyword-count">—</strong><span>设计词条<br>八种观察角度</span></div></div></div>
+      <div class="workspace">
+        <aside class="config-panel" aria-label="抽取设置">
+          <div class="panel-title"><p class="eyebrow">SAMPLING DESK</p><h2>构成参数</h2><span class="small-index">选定范围，再让灵感相遇。</span></div>
+          <fieldset class="mode-field"><legend>组合方式</legend>
+            <label class="mode-option"><input type="radio" name="mode" value="coordinated" checked><span><strong>协调模式</strong><small>排除明确冲突，保留意外组合</small></span><span class="radio-dot" aria-hidden="true"></span></label>
+            <label class="mode-option"><input type="radio" name="mode" value="free"><span><strong>自由模式</strong><small>独立随机，让不同风格碰撞</small></span><span class="radio-dot" aria-hidden="true"></span></label>
+          </fieldset>
+          <fieldset class="count-setting"><legend>每维度词条数</legend><div id="draw-count" class="segmented" role="group" aria-label="每维度词条数"><button type="button" data-count="2" aria-pressed="false">2 条</button><button type="button" data-count="3" aria-pressed="false">3 条</button><button type="button" data-count="random" aria-label="随机 2–3 条" aria-pressed="true">2–3</button><button type="button" data-count="1" aria-pressed="false" hidden>1 条</button></div><p class="control-caption" id="count-caption">各维度独立随机</p></fieldset>
+          <div class="draw-actions"><button id="draw-button" class="primary-button" type="button"><span data-icon="shuffle"></span><span id="draw-button-label">抽取一组灵感</span></button><p id="lock-hint">每个维度随机抽取 2–3 条</p></div>
+          <fieldset class="dimensions-field"><legend>取样范围 <span id="selected-count">8 / 8</span></legend><div id="dimension-options" class="dimension-options"></div></fieldset>
+        </aside>
+        <div class="results-column">
+          <div class="results-toolbar"><div><span class="section-index">01</span><h2>本次构成</h2><span id="result-meta" class="result-meta">准备就绪</span></div><div class="toolbar-actions"><button id="favorite-current" class="button" type="button" disabled><span data-icon="star"></span><span>收藏组合</span></button><button id="copy-text" class="button" type="button" disabled><span data-icon="copy"></span>复制文本</button></div></div>
+          <div class="view-tools"><div class="view-tool-group"><span class="tool-label">取景</span><div class="segmented" id="view-mode" role="group" aria-label="取景方式"><button type="button" data-framing="overview" aria-pressed="true">全览</button><button type="button" data-framing="focus" aria-pressed="false">单维聚焦</button></div></div><div class="view-tool-group spacing-tools"><span class="tool-label">留白</span><div class="segmented" id="spacing-mode" role="group" aria-label="留白档位"><button type="button" data-spacing="compact" aria-pressed="false">紧凑</button><button type="button" data-spacing="balanced" aria-pressed="true">均衡</button><button type="button" data-spacing="spacious" aria-pressed="false">舒展</button></div><button id="measure-toggle" class="measure-button" type="button" aria-pressed="false" title="显示实际卡片间距与内边距"><span data-icon="ruler"></span>标尺</button></div></div>
+          <div id="draw-error" class="error-banner" role="alert" hidden></div>
+          <div id="draw-warnings" class="warning-banner" role="status" hidden></div>
+          <div class="results-stage"><nav id="dimension-index" class="dimension-index" aria-label="聚焦设计维度"></nav><div class="viewfinder" id="viewfinder" data-framing="overview" data-spacing="balanced"><div class="frame-caption"><span id="frame-caption">全览 / 八个维度</span><span id="sample-id">SAMPLE —</span></div><div id="measure-readout" class="measure-readout" role="status" hidden></div><div id="result-grid" class="result-grid" aria-live="polite"><div class="empty-state"><span data-icon="grid"></span><h3>正在读取本地词库</h3><p>马上开始你的第一次灵感采样。</p></div></div><div class="frame-footnote"><span>锁定一个维度，保留整组词条。</span><span>取景改变显示范围，复制保留完整组合。</span></div></div></div>
+          <section class="output-panel" aria-labelledby="output-title"><div class="output-heading"><div><span class="section-index">02</span><h2 id="output-title">交给 agent</h2><span class="output-caption">THE DESIGN BRIEF</span></div><div class="output-controls"><div class="segmented" role="group" aria-label="输出格式"><button type="button" id="format-text" aria-pressed="true">文本</button><button type="button" id="format-json" aria-pressed="false">JSON</button></div><button id="copy-output" class="icon-button" type="button" aria-label="复制当前格式的结果" disabled><span data-icon="copy"></span></button></div></div><pre id="output-preview" tabindex="0">抽取后，可在这里查看和复制完整结果。</pre><details class="agent-note"><summary>通过 HTTP 获取同一份灵感 <span aria-hidden="true">↗</span></summary><p>与网页共用词库、规则和记录。</p><code>POST /api/draw</code><pre>{"mode":"coordinated"}</pre><p>完整接口示例见项目 README。</p></details></section>
+        </div>
+      </div>
+    </section>
+    <section id="view-library" aria-labelledby="library-title" hidden>
+      <div class="page-heading"><div><p class="eyebrow">KEYWORD LIBRARY <span>/ 02</span></p><h1 id="library-title">让词库长成你的样子</h1><p class="subtitle">具体的关键词，让灵感更容易落地。</p></div><button id="add-keyword" class="primary-button" type="button"><span data-icon="plus"></span>新增词条</button></div>
+      <div class="library-tools"><label class="search-field"><span data-icon="search"></span><input id="library-search" type="search" placeholder="搜索关键词或设计说明" aria-label="搜索关键词或设计说明"></label><label class="filter-field">维度<select id="library-dimension"><option value="">全部维度</option></select></label><span id="library-visible-count" class="muted"></span><button id="refresh-library" class="button" type="button"><span data-icon="refresh"></span>刷新词库</button></div>
+      <div id="library-list" class="library-list"></div>
+    </section>
+    <section id="view-records" aria-labelledby="records-title" hidden>
+      <div class="page-heading"><div><p class="eyebrow">SAVED EXPLORATIONS <span>/ 03</span></p><h1 id="records-title">好灵感，值得留下</h1><p class="subtitle">收藏保留喜欢的方向，历史记录每次探索。</p></div><button id="refresh-records" class="button" type="button"><span data-icon="refresh"></span>刷新记录</button></div>
+      <div class="records-tools"><div class="segmented" role="group" aria-label="记录类型"><button id="show-favorites" type="button" aria-pressed="true">我的收藏 <span id="favorites-count">0</span></button><button id="show-history" type="button" aria-pressed="false">最近历史 <span id="history-count">0</span></button></div><p>保存当时的内容快照 <span>·</span> 历史最多 100 组</p></div>
+      <div id="records-list" class="records-list"></div>
+    </section>
+    <footer class="app-footer"><span>DESIGN SEED <b>／</b> 灵感始于一次新的组合</span><span id="footer-status">本地保存 · 网页与 API 共用</span></footer>
+  </main>
+  <dialog id="editor-dialog" aria-labelledby="editor-title">
+    <form id="editor-form"><div class="dialog-header"><div><p class="eyebrow">EDIT KEYWORD</p><h2 id="editor-title">新增词条</h2></div><button class="icon-button" type="button" data-close="editor-dialog" aria-label="关闭词条编辑器"><span data-icon="close"></span></button></div>
+      <div id="editor-error" class="error-banner" role="alert" hidden></div>
+      <div class="form-row"><label>所属维度<select id="edit-dimension" required></select></label><label>关键词<input id="edit-name" maxlength="80" required placeholder="例如：天气响应表面"></label></div>
+      <label class="form-label">设计说明<textarea id="edit-description" rows="4" maxlength="2000" required placeholder="描述它会如何改变界面的布局、视觉或交互。"></textarea></label>
+      <fieldset class="conflicts-field"><legend>互斥词条 <span id="conflict-count">0 项</span></legend><p>协调模式不会把这些词条与当前词条放在同一组。任一方向设置即生效。</p><input id="conflict-search" type="search" aria-label="搜索互斥候选词条" placeholder="搜索需要排除的词条"><div id="conflict-options" class="conflict-options"></div></fieldset>
+      <div class="dialog-actions"><span>修改将保存到本地词库</span><button type="button" class="button" data-close="editor-dialog">取消</button><button type="submit" id="save-keyword" class="primary-button">保存词条</button></div>
+    </form>
+  </dialog>
+  <dialog id="record-dialog" aria-labelledby="record-title"><div class="dialog-header"><div><p class="eyebrow">SAVED SNAPSHOT</p><h2 id="record-title">组合快照</h2></div><button class="icon-button" type="button" data-close="record-dialog" aria-label="关闭组合快照"><span data-icon="close"></span></button></div><div id="record-detail"></div><div class="dialog-actions"><button id="copy-record-json" class="button" type="button">复制 JSON</button><button id="copy-record-text" class="primary-button" type="button">复制文本</button></div></dialog>
+  <dialog id="copy-dialog" aria-labelledby="copy-title"><div class="dialog-header"><h2 id="copy-title">请选择并复制以下内容</h2><button class="icon-button" type="button" data-close="copy-dialog" aria-label="关闭复制文本"><span data-icon="close"></span></button></div><p class="muted">自动复制不可用，可按 Ctrl+C 或长按复制。</p><textarea id="copy-fallback" rows="12" readonly aria-label="待复制的结果"></textarea></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
