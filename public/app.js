@@ -299,7 +299,7 @@ async function registerBrowserTools() {
   window.addEventListener('pagehide', () => lifecycle.abort(), { once: true });
   const idMap = { type: 'object', additionalProperties: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 3, uniqueItems: true }] } };
   const definitions = [
-    { name: 'read_design_catalog', description: '读取灵感采样的八维词库及显式互斥关系。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true }, execute: () => api('/api/catalog') },
+    { name: 'read_design_catalog', description: '读取形意词库的八维术语及显式互斥关系。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true }, execute: () => api('/api/catalog') },
     { name: 'draw_design_inspiration', description: '每维度抽取 2–3 条设计灵感，保存到本地历史并更新当前网页结果。锁定维度会保留整组。', inputSchema: { type: 'object', properties: { dimensions: { type: 'array', items: { type: 'string', enum: state.catalog.dimensions.map(d => d.id) }, minItems: 1, maxItems: 8, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'] }, countPerDimension: { enum: ['random', 1, 2, 3] }, locked: idMap, current: idMap }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true }, execute: input => performDraw(input, { tool: true }) },
   ];
   for (const definition of definitions) { try { await document.modelContext.registerTool(definition, { signal: lifecycle.signal }); } catch (error) { console.warn('浏览器工具注册不可用；HTTP 接口不受影响。', error); } }

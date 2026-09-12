@@ -1,5 +1,7 @@
 {
-  "name": "design-inspiration",
+  "name": "formlex",
+  "description": "形意词库：面向设计师与 agent 的 400 条美术与设计术语及灵感组合工具。",
+  "repository": { "type": "git", "url": "https://github.com/Inderwish/formlex.git" },
   "version": "1.1.0",
   "private": true,
   "type": "module",

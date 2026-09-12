@@ -117,7 +117,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? `端口 ${port} 已被占用，请通过 PORT 指定其他端口。` : error.message); process.exitCode = 1; });
     server.listen(port, '127.0.0.1', () => {
       const url = `http://127.0.0.1:${port}`;
-      console.log(`灵感采样已启动：${url}\n按 Ctrl+C 关闭。`);
+      console.log(`形意词库 FormLex 已启动：${url}\n按 Ctrl+C 关闭。`);
       if (values.open && process.platform === 'win32') {
         execFile('rundll32.exe', ['url.dll,FileProtocolHandler', url], { timeout: 5000, windowsHide: true }, error => {
           if (error) console.error(`无法自动打开浏览器，请手动访问 ${url}`);

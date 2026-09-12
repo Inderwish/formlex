@@ -1,6 +1,10 @@
-# 灵感采样 · Design Seed
+# 形意词库 · FormLex
 
-一个本机运行的前端设计灵感工作台。八个维度、每维度 50 条，共 400 条可编辑词条，网页与 HTTP API 共用抽取规则、本地词库和记录。无需安装依赖，不调用模型服务。
+以形启意，组合下一次设计。面向设计师与 agent 的公开设计灵感词库，收录八个维度、每维度 50 条，共 400 条美术与设计术语，每条附有具体的前端应用说明。
+
+[浏览内置词库](seed.mjs) · [GitHub 仓库](https://github.com/Inderwish/formlex)
+
+附带本机运行的灵感工作台：网页与 HTTP API 共用抽取规则、本地词库和记录，支持每维度随机组合 2–3 条术语。无需安装依赖，不调用模型服务。
 
 [桌面预览](preview/desktop.png) · [单维聚焦](preview/focus.png) · [移动端预览](preview/mobile-focus.png)
 

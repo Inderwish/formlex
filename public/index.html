@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="从八个前端设计维度采样灵感，锁定、重组，并与 agent 共用可编辑的本地词库。">
+  <meta name="description" content="形意词库 FormLex：400 条美术与设计术语，从八个维度采样、锁定与重组，为设计师和 agent 提供构建灵感。">
   <meta name="theme-color" content="#f2f3ef">
-  <title>灵感采样 — Design Seed</title>
+  <title>形意词库 — FormLex</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" type="module"></script>
@@ -13,7 +13,7 @@
 <body>
   <a href="#main" class="skip-link">跳到主要内容</a>
   <header class="app-header">
-    <a class="brand" href="#draw" aria-label="灵感采样首页"><img src="/favicon.svg" alt="" width="36" height="36"><span>灵感采样<small>DESIGN SEED · STUDIO</small></span></a>
+    <a class="brand" href="#draw" aria-label="形意词库首页"><img src="/favicon.svg" alt="" width="36" height="36"><span>形意词库<small>FORMLEX · DESIGN LEXICON</small></span></a>
     <nav class="main-nav" aria-label="主要页面">
       <button type="button" data-view="draw" aria-current="page">灵感抽取</button>
       <button type="button" data-view="library">词库管理</button>
@@ -56,7 +56,7 @@
       <div class="records-tools"><div class="segmented" role="group" aria-label="记录类型"><button id="show-favorites" type="button" aria-pressed="true">我的收藏 <span id="favorites-count">0</span></button><button id="show-history" type="button" aria-pressed="false">最近历史 <span id="history-count">0</span></button></div><p>保存当时的内容快照 <span>·</span> 历史最多 100 组</p></div>
       <div id="records-list" class="records-list"></div>
     </section>
-    <footer class="app-footer"><span>DESIGN SEED <b>／</b> 灵感始于一次新的组合</span><span id="footer-status">本地保存 · 网页与 API 共用</span></footer>
+    <footer class="app-footer"><span>FORMLEX <b>／</b> 以形启意，组合下一次设计</span><span id="footer-status">本地保存 · 网页与 API 共用</span></footer>
   </main>
   <dialog id="editor-dialog" aria-labelledby="editor-title">
     <form id="editor-form"><div class="dialog-header"><div><p class="eyebrow">EDIT KEYWORD</p><h2 id="editor-title">新增词条</h2></div><button class="icon-button" type="button" data-close="editor-dialog" aria-label="关闭词条编辑器"><span data-icon="close"></span></button></div>
