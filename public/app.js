@@ -1,4 +1,4 @@
-import { priorities, priority, effectivePriority, retainKeywordPriorities, buildDesignPrompt } from './design-rules.mjs';
+import { priorities, priority, effectivePriority, retainKeywordPriorities, buildDesignPrompt, buildKeywordText } from './design-rules.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -31,8 +31,7 @@ const dim = id => state.catalog.dimensions.find(d => d.id === id);
 const groups = items => state.catalog.dimensions.map(d => ({ ...d, items: items.filter(k => k.dimension === d.id) })).filter(g => g.items.length);
 const idsByDimension = items => Object.fromEntries(groups(items).map(g => [g.id, g.items.map(k => k.id)]));
 const boardGroups = () => groups(state.result?.items ?? []).sort((a,b) => state.boardOrder.indexOf(a.id) - state.boardOrder.indexOf(b.id));
-// Avoid leading spaces that rich-text editors may serialize as HTML whitespace entities.
-const textOf = record => record.text.replace(/^ {2}(?=\S)/gm, '');
+const textOf = record => buildKeywordText(record, state.catalog.dimensions);
 const promptOf = record => buildDesignPrompt(record, state.catalog.dimensions);
 const currentPrompt = () => buildDesignPrompt(state.result, state.catalog.dimensions, { ...state.brief, dimensionOrder: state.boardOrder });
 const priorityOptions = () => priorities.map(p => `<option value="${p.id}">${p.name}</option>`).join('');

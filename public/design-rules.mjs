@@ -1,5 +1,5 @@
 // Shared by the browser prompt composer and the generated Codex Skill.
-export const rulesVersion = '1.5.0';
+export const rulesVersion = '1.5.1';
 export const priorities = [
   { id: 'normal', name: '普通', meaning: '有清楚、可辨识的实际落点，不能省略。' },
   { id: 'emphasis', name: '重点', meaning: '获得更充分的区域、细节或交互表达。' },
@@ -50,15 +50,10 @@ export function orderedGroups(record, dimensions, draft = {}) {
     items: record.items.filter(k => k.dimension === d.id).toSorted((a, b) => rank(effectivePriority(b, draft)) - rank(effectivePriority(a, draft))),
   })).sort((a, b) => rank(b.priority) - rank(a.priority) || order.indexOf(a.id) - order.indexOf(b.id));
 }
+export function buildKeywordText(record, dimensions) {
+  return orderedGroups(record, dimensions).map(group => `${group.name}\n\n` + group.items.map(k => `• ${k.name}\n${k.description}`).join('\n\n')).join('\n\n');
+}
 export function buildDesignPrompt(record, dimensions, draft = {}) {
-  const colorNames = { random: '随机（不限冷暖）', cool: '冷色调', warm: '暖色调' };
-  const meta = [`词库：${record.library?.name ?? '全部词库'}`, `模式：${record.mode === 'free' ? '自由模式' : '协调模式'}`, `共 ${record.items.length} 条，全部必须落实`];
-  if (record.colorTemperature) meta.push(`色彩筛选：${colorNames[record.colorTemperature]}`);
-  const features = record.items.filter(k => k.dimension === 'feature').length;
-  if (features) meta.push(`网站特色：独立全局词池 · ${features} 条`);
-  const terms = orderedGroups(record, dimensions, draft).map(group => `### ${group.name} · 维度权重：${priority(group.priority).name}\n\n` + group.items.map(k => {
-    const explicit = Object.hasOwn(draft.keywordPriorities ?? {}, k.id);
-    return `• ${k.name}（${k.id}；${priority(effectivePriority(k, draft)).name}；${explicit ? '单独设置' : '跟随维度'}）\n${k.description}`;
-  }).join('\n\n')).join('\n\n');
-  return `# FormLex 设计任务\n\n## 任务与硬约束\n\n${draft.task?.trim() || '结合本次对话中用户提供的页面任务与硬约束执行；任务尚不明确时，先向用户澄清必要信息。'}\n\n## 权重与全部必选原则\n\n${requirements}\n\n## 完整设计词条\n\n${meta.join('\n')}\n\n${terms}\n\n## 设计与实现规则\n\n${implementation}\n\n## 冲突必须询问\n\n${conflictRules}\n\n## 逐词验收\n\n${verification}`;
+  const terms = orderedGroups(record, dimensions, draft).map(group => `## ${group.name} · ${priority(group.priority).name}\n\n` + group.items.map(k => `• ${k.name}（${priority(effectivePriority(k, draft)).name}）\n${k.description}`).join('\n\n')).join('\n\n');
+  return `## 任务与硬约束\n\n${draft.task?.trim() || '结合本次对话中用户提供的页面任务与硬约束执行；任务尚不明确时，先向用户澄清必要信息。'}\n\n## 权重与全部必选原则\n\n${requirements}\n\n${terms}\n\n## 设计与实现规则\n\n${implementation}\n\n## 冲突必须询问\n\n${conflictRules}\n\n## 逐词验收\n\n${verification}`;
 }

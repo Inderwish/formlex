@@ -1,6 +1,6 @@
 {
   "name": "formlex",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "用完整设计规则落实 1,424 条美术线索：全部词条必选、可安排主次，无法兼容的冲突主动询问。",
   "author": {
     "name": "Inderwish",
