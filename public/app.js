@@ -1,3 +1,5 @@
+import { priorities, priority, effectivePriority, retainKeywordPriorities, buildDesignPrompt } from './design-rules.mjs';
+
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -21,7 +23,8 @@ const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 $$('[data-icon]').forEach(node => { node.innerHTML = icon(node.dataset.icon); });
 
 const state = { catalog: { dimensions: [], keywords: [], libraries: [] }, selected: [], libraryId: 'all', libraryLimit: 80, collectionLimit: 80, collectionSelection: new Set(), collectionBusy: false, mode: 'coordinated', countPerDimension: 'random', locked: {}, result: null,
-  history: [], favorites: [], view: 'draw', recordKind: 'favorites', format: 'text', busy: false, featureCount: 1, colorTemperature: 'random',
+  history: [], favorites: [], view: 'draw', recordKind: 'favorites', format: 'prompt', busy: false, featureCount: 1, colorTemperature: 'random',
+  brief: { task: '', dimensionPriorities: {}, keywordPriorities: {} },
   editing: null, conflictSelection: new Set(), detail: null, framing: 'overview', focusDimension: 'style', spacing: 'balanced', measuring: false,
   boardOrder: [], curating: false, activeKeyword: null, inspecting: false, pendingDraw: null, pendingCount: 0 };
 const dim = id => state.catalog.dimensions.find(d => d.id === id);
@@ -30,6 +33,11 @@ const idsByDimension = items => Object.fromEntries(groups(items).map(g => [g.id,
 const boardGroups = () => groups(state.result?.items ?? []).sort((a,b) => state.boardOrder.indexOf(a.id) - state.boardOrder.indexOf(b.id));
 // Avoid leading spaces that rich-text editors may serialize as HTML whitespace entities.
 const textOf = record => record.text.replace(/^ {2}(?=\S)/gm, '');
+const promptOf = record => buildDesignPrompt(record, state.catalog.dimensions);
+const currentPrompt = () => buildDesignPrompt(state.result, state.catalog.dimensions, { ...state.brief, dimensionOrder: state.boardOrder });
+const priorityOptions = () => priorities.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+// Draft requirements and priorities are intentionally separate from saved records and browser storage.
+$('#brief-task').value = '';
 const modeName = mode => mode === 'coordinated' ? '协调模式' : '自由模式';
 const temperatureName = value => ({ random: '随机（不限冷暖）', cool: '冷色调', warm: '暖色调', neutral: '中性', mixed: '混合', unspecified: '未分类' })[value ?? 'unspecified'];
 const regularDimensions = () => state.catalog.dimensions.filter(d => d.id !== 'feature');
@@ -172,6 +180,8 @@ function updateDrawControls() {
   $$('#draw-count button').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.count === String(state.countPerDimension))); });
   $('#count-caption').textContent = state.countPerDimension === 'random' ? '各维度独立随机' : '锁定组保持原来的词条数';
   $$('[data-reroll], [data-lock]').forEach(button => { button.disabled = state.busy || state.inspecting || !state.selected.includes(button.dataset.reroll ?? button.dataset.lock) || (button.hasAttribute('data-reroll') && Boolean(state.locked[button.dataset.reroll])); });
+  $$('[data-dimension-priority], [data-keyword-priority]').forEach(select => { select.disabled = state.busy; });
+  $('#priority-reset').disabled = state.busy || !state.result;
   const bounds = state.selected.map(d => {
     const fixed = state.locked[d]?.length;
     if (fixed) return [fixed, fixed];
@@ -218,13 +228,33 @@ function renderDraw() {
     $('#result-grid').innerHTML = boardGroups().map((group, position, list) => {
       const locked = Boolean(state.locked[group.id]);
       const index = state.catalog.dimensions.findIndex(d => d.id === group.id) + 1;
-      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索${group.id === 'feature' ? ' · 独立特色池' : ''}</span>${locked ? '<span class="locked-label">已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><div class="keyword-stack">${group.items.map((k, i) => `<section class="keyword-term"><button type="button" class="term-slot" data-inspect="${k.id}" aria-pressed="false" aria-label="阅读${escape(k.name)}"><span aria-hidden="true">${String(i + 1).padStart(2,'0')}</span><strong class="term-name">${escape(k.name)}</strong><small aria-hidden="true">↗</small></button><p>${escape(k.description)}</p></section>`).join('')}</div><div class="curation-actions"><button type="button" data-dimension="${group.id}" data-move="-1" ${position === 0 ? 'disabled' : ''} aria-label="前移${group.name}">← 前移</button><button type="button" data-dimension="${group.id}" data-move="1" ${position === list.length - 1 ? 'disabled' : ''} aria-label="后移${group.name}">后移 →</button></div></article>`;
+      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索${group.id === 'feature' ? ' · 独立特色池' : ''}</span>${locked ? '<span class="locked-label">已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><label class="dimension-priority-control">整组权重<select data-dimension-priority="${group.id}" aria-label="${group.name}维度权重">${priorityOptions()}</select></label><div class="keyword-stack">${group.items.map((k, i) => `<section class="keyword-term"><button type="button" class="term-slot" data-inspect="${k.id}" aria-pressed="false" aria-label="阅读${escape(k.name)}"><span aria-hidden="true">${String(i + 1).padStart(2,'0')}</span><strong class="term-name">${escape(k.name)}</strong><small aria-hidden="true">↗</small></button><div class="term-priority-control"><span class="effective-priority">生效：普通</span><select data-keyword-priority="${k.id}" aria-label="${escape(k.name)}词条权重"><option value="inherit">跟随维度</option>${priorityOptions()}</select></div><p>${escape(k.description)}</p></section>`).join('')}</div><div class="curation-actions"><button type="button" data-dimension="${group.id}" data-move="-1" ${position === 0 ? 'disabled' : ''} aria-label="前移${group.name}">← 前移</button><button type="button" data-dimension="${group.id}" data-move="1" ${position === list.length - 1 ? 'disabled' : ''} aria-label="后移${group.name}">后移 →</button></div></article>`;
     }).join('');
     $('#dimension-index').innerHTML = boardGroups().map(group => `<button type="button" data-focus="${group.id}" aria-label="聚焦${group.name}" aria-pressed="false"><span>${String(state.catalog.dimensions.findIndex(d => d.id === group.id) + 1).padStart(2, '0')}</span><small>${group.name}</small></button>`).join('');
   }
   $('#copy-text').disabled = !state.result;
   $('#copy-output').disabled = !state.result;
-  updateFavoriteButton(); updateDrawControls(); renderOutput(); renderFrame();
+  updateFavoriteButton(); updateDrawControls(); renderPriorities(); renderOutput(); renderFrame();
+}
+function renderPriorities() {
+  const counts = Object.fromEntries(priorities.map(p => [p.id, 0]));
+  for (const keyword of state.result?.items ?? []) {
+    const effective = effectivePriority(keyword, state.brief);
+    counts[effective]++;
+    const select = $(`[data-keyword-priority="${keyword.id}"]`);
+    if (!select) continue;
+    const override = Object.hasOwn(state.brief.keywordPriorities, keyword.id);
+    select.value = override ? state.brief.keywordPriorities[keyword.id] : 'inherit';
+    select.querySelector('option[value="inherit"]').textContent = `跟随维度 · ${priority(state.brief.dimensionPriorities[keyword.dimension]).name}`;
+    const term = select.closest('.keyword-term');
+    term.dataset.priority = effective;
+    term.querySelector('.effective-priority').textContent = `生效：${priority(effective).name}${override ? ' · 单独' : ''}`;
+  }
+  $$('[data-dimension-priority]').forEach(select => {
+    select.value = priority(state.brief.dimensionPriorities[select.dataset.dimensionPriority]).id;
+    select.closest('.result-card').dataset.priority = select.value;
+  });
+  $('#priority-summary').textContent = state.result ? `${state.result.items.length} 条全部必选 · ${priorities.map(p => `${p.name} ${counts[p.id]}`).join(' / ')}` : '抽取后设置设计投入，全部词条都需要落实。';
 }
 function renderFrame() {
   const available = boardGroups();
@@ -256,9 +286,9 @@ function renderMeasurement() {
   $('#measure-readout').textContent = `框内留白 ${frame} px　／　卡片内边距 ${padding} px${state.framing === 'overview' ? `　／　卡片间距 ${gap} px` : ''}`;
 }
 function renderOutput() {
-  $('#format-text').setAttribute('aria-pressed', String(state.format === 'text'));
-  $('#format-json').setAttribute('aria-pressed', String(state.format === 'json'));
-  $('#output-preview').textContent = !state.result ? '抽取后，可在这里查看和复制完整结果。' : state.format === 'text' ? textOf(state.result) : JSON.stringify(state.result, null, 2);
+  for (const format of ['prompt', 'text', 'json']) $(`#format-${format}`).setAttribute('aria-pressed', String(state.format === format));
+  $('#output-preview').textContent = !state.result ? '抽取后，可在这里查看和复制完整设计提示词。' : state.format === 'prompt' ? currentPrompt() : state.format === 'text' ? textOf(state.result) : JSON.stringify(state.result, null, 2);
+  $('#copy-output').setAttribute('aria-label', `复制${state.format === 'prompt' ? '完整提示词' : state.format === 'text' ? '纯词条' : '原始 JSON'}`);
 }
 function drawInput(target) {
   const old = (state.result?.items ?? []).filter(k => state.selected.includes(k.dimension));
@@ -277,6 +307,7 @@ function acceptDraw(record, input, tool) {
     $$('input[name="mode"]').forEach(node => { node.checked = node.value === state.mode; });
     renderLibraryChoices();
   }
+  state.brief.keywordPriorities = retainKeywordPriorities(state.brief.keywordPriorities, record.items);
   state.result = record;
   $('#draw-warnings').textContent = record.warnings.join(' '); $('#draw-warnings').hidden = !record.warnings.length;
   renderDraw();
@@ -360,14 +391,14 @@ function renderRecords() {
   const items = state[state.recordKind];
   $('#records-list').innerHTML = items.length ? items.map(record => {
     const saved = state.favorites.some(r => r.id === record.id);
-    return `<article class="record-card"><div class="record-top"><time datetime="${escape(record.createdAt)}">${date(record.createdAt)}</time><span class="mode-badge">${modeName(record.mode)}</span></div><div class="record-chips">${record.items.map(k => `<span>${escape(k.name)}</span>`).join('')}</div><div class="record-actions"><button class="button" type="button" data-detail="${record.id}">查看快照</button><button class="button" type="button" data-copy-record="${record.id}">${icon('copy')}复制文本</button><button class="icon-button" type="button" data-favorite="${record.id}" aria-label="${saved ? '取消收藏' : '收藏此组合'}" aria-pressed="${saved}">${icon('star')}</button></div></article>`;
+    return `<article class="record-card"><div class="record-top"><time datetime="${escape(record.createdAt)}">${date(record.createdAt)}</time><span class="mode-badge">${modeName(record.mode)}</span></div><div class="record-chips">${record.items.map(k => `<span>${escape(k.name)}</span>`).join('')}</div><div class="record-actions"><button class="button" type="button" data-detail="${record.id}">查看快照</button><button class="button" type="button" data-copy-record="${record.id}">${icon('copy')}复制完整提示词</button><button class="icon-button" type="button" data-favorite="${record.id}" aria-label="${saved ? '取消收藏' : '收藏此组合'}" aria-pressed="${saved}">${icon('star')}</button></div></article>`;
   }).join('') : `<div class="empty-state">${icon(state.recordKind === 'favorites' ? 'star' : 'grid')}<h3>${state.recordKind === 'favorites' ? '为喜欢的组合留一个位置' : '从第一组灵感开始'}</h3><p>${state.recordKind === 'favorites' ? '在抽取结果或历史中点击收藏，喜欢的方向就会留在这里。' : '成功抽取的组合会自动出现在这里，最多保留最近 100 组。'}</p></div>`;
 }
 function recordById(id) { return [...state.favorites, ...state.history].find(r => r.id === id); }
 function openRecord(record) {
   state.detail = record;
   $('#record-title').textContent = `${modeName(record.mode)} · ${groups(record.items).length} 个维度 / ${record.items.length} 条`;
-  $('#record-detail').innerHTML = `<p class="muted">${date(record.createdAt)} · ${escape(record.library?.name ?? '全部词库')}${record.colorTemperature ? ` · 色彩：${temperatureName(record.colorTemperature)}` : ''}${record.featureSource === 'global' ? ` · 独立特色池（数量设置 ${record.featureCount ?? 1} 条）` : ''} · 保存时的内容快照</p>` + groups(record.items).map(group => `<section class="record-detail-item"><span class="dimension-tag">${group.name} · ${group.items.length} 条</span>${group.items.map(k => `<div class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p></div>`).join('')}</section>`).join('');
+  $('#record-detail').innerHTML = `<p class="muted">${date(record.createdAt)} · ${escape(record.library?.name ?? '全部词库')}${record.colorTemperature ? ` · 色彩：${temperatureName(record.colorTemperature)}` : ''}${record.featureSource === 'global' ? ` · 独立特色池（数量设置 ${record.featureCount ?? 1} 条）` : ''} · 保存时的内容快照</p><p class="control-caption">复制完整提示词时按全部普通生成，不包含编辑页临时任务或权重。</p>` + groups(record.items).map(group => `<section class="record-detail-item"><span class="dimension-tag">${group.name} · ${group.items.length} 条</span>${group.items.map(k => `<div class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p></div>`).join('')}</section>`).join('');
   $('#record-dialog').showModal();
 }
 
@@ -431,9 +462,22 @@ on('#result-grid', 'click', event => {
   } else return performDraw(drawInput(button.dataset.reroll)).then(() => $(`[data-reroll="${button.dataset.reroll}"]`)?.focus()).catch(() => {});
 });
 on('#favorite-current', 'click', async () => { $('#favorite-current').disabled = true; try { await toggleFavorite(state.result); } finally { updateFavoriteButton(); } });
-on('#copy-text', 'click', () => copy(textOf(state.result)));
+on('#copy-text', 'click', () => copy(currentPrompt()));
 on('#copy-output', 'click', () => copy($('#output-preview').textContent));
-for (const format of ['text', 'json']) on(`#format-${format}`, 'click', () => { state.format = format; renderOutput(); });
+for (const format of ['prompt', 'text', 'json']) on(`#format-${format}`, 'click', () => { state.format = format; renderOutput(); });
+on('#brief-task', 'input', () => { state.brief.task = $('#brief-task').value; renderOutput(); });
+on('#priority-reset', 'click', () => {
+  state.brief.dimensionPriorities = {}; state.brief.keywordPriorities = {};
+  renderPriorities(); renderOutput(); toast('全部恢复普通，所有词条仍须落实');
+});
+on('#result-grid', 'change', event => {
+  const select = event.target.closest('[data-dimension-priority], [data-keyword-priority]');
+  if (!select || select.disabled) return;
+  if (select.dataset.dimensionPriority) state.brief.dimensionPriorities[select.dataset.dimensionPriority] = priority(select.value).id;
+  else if (select.value === 'inherit') delete state.brief.keywordPriorities[select.dataset.keywordPriority];
+  else state.brief.keywordPriorities[select.dataset.keywordPriority] = priority(select.value).id;
+  renderPriorities(); renderOutput();
+});
 on('#draw-library', 'change', () => applyLibrary($('#draw-library').value));
 on('#manage-libraries', 'click', openCollection);
 on('#collection-edit-select', 'change', () => {
@@ -483,10 +527,11 @@ on('#records-list', 'click', async event => {
   const button = event.target.closest('[data-detail], [data-copy-record], [data-favorite]'); if (!button) return;
   const record = recordById(button.dataset.detail ?? button.dataset.copyRecord ?? button.dataset.favorite);
   if (button.dataset.detail) return openRecord(record);
-  if (button.dataset.copyRecord) return copy(textOf(record));
+  if (button.dataset.copyRecord) return copy(promptOf(record));
   button.disabled = true; try { await toggleFavorite(record); } finally { button.disabled = false; }
 });
-on('#copy-record-text', 'click', () => copy(textOf(state.detail)));
+on('#copy-record-text', 'click', () => copy(promptOf(state.detail)));
+on('#copy-record-raw', 'click', () => copy(textOf(state.detail)));
 on('#copy-record-json', 'click', () => copy(JSON.stringify(state.detail, null, 2)));
 $$('[data-close]').forEach(button => { button.addEventListener('click', () => $(`#${button.dataset.close}`).close()); });
 

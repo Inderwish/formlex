@@ -1,6 +1,6 @@
 # FormLex 一次性 CLI
 
-需要 Node.js 22+，无第三方依赖。源码根目录使用 `node cli.mjs`，插件包使用 `node runtime/cli.mjs`；可从任意目录用脚本绝对路径调用。程序输出一行 UTF-8 JSON 后退出，不启动服务。
+需要 Node.js 22+，无第三方依赖。源码根目录使用 `node cli.mjs`，插件包使用 `node runtime/cli.mjs`；可从任意目录用脚本绝对路径调用。程序输出一行 UTF-8 JSON 后退出，不启动服务。网页的临时设计权重与完整提示词编排不改变本 CLI 的参数或原始抽取响应；插件 Skill 自身包含同源的全部必选与冲突询问规则。
 
 ```sh
 node runtime/cli.mjs libraries

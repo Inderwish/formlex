@@ -1,27 +1,41 @@
 {
   "name": "formlex",
-  "version": "1.4.0",
-  "description": "用 1,424 条专业设计线索探索鲜明前端：离线抽取、确定主次、实现页面并检查效果。",
+  "version": "1.5.0",
+  "description": "用完整设计规则落实 1,424 条美术线索：全部词条必选、可安排主次，无法兼容的冲突主动询问。",
   "author": {
     "name": "Inderwish",
     "url": "https://github.com/Inderwish"
   },
   "homepage": "https://github.com/Inderwish/formlex",
   "repository": "https://github.com/Inderwish/formlex",
-  "keywords": ["frontend", "design", "art", "inspiration", "offline"],
+  "keywords": [
+    "frontend",
+    "design",
+    "art",
+    "inspiration",
+    "offline"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "FormLex · 形意词库",
     "shortDescription": "抽取美术术语，构建更有辨识度的前端。",
-    "longDescription": "内置 1,424 条设计线索，覆盖八个常规维度与独立网站特色。默认离线运行，从候选中确定主导风格、布局、配色和字阶，按任务完成前端实现与检查。支持主题、冷暖筛选、锁定重抽；需要个人词库时显式连接本机工作台。",
+    "longDescription": "内置 1,424 条设计线索，默认离线运行。将整组词条逐条落实到真实视觉与交互中；普通、重点和主导决定表现强度，不能作为遗漏理由。无法兼容的冲突主动询问用户。网页完整提示词与 Skill 共用执行规则；个人词库与 MCP 保持可选。",
     "developerName": "Inderwish",
     "category": "Productivity",
-    "capabilities": ["Write"],
+    "capabilities": [
+      "Write"
+    ],
     "websiteURL": "https://github.com/Inderwish/formlex",
-    "defaultPrompt": ["使用 $formlex-design 大胆重构当前页面，保留业务功能并验证效果。", "使用 $formlex-design 给出三个差异明显的设计方向，只输出方案。", "使用 $formlex-design，在现有品牌色和技术栈内优化页面。"],
+    "defaultPrompt": [
+      "使用 $formlex-design 大胆重构当前页面，保留业务功能并验证效果。",
+      "使用 $formlex-design 给出三个差异明显的设计方向，只输出方案。",
+      "使用 $formlex-design，在现有品牌色和技术栈内优化页面。"
+    ],
     "brandColor": "#2957CB",
     "composerIcon": "./assets/icon.svg",
     "logo": "./assets/icon.svg",
-    "screenshots": ["./assets/workbench.png"]
+    "screenshots": [
+      "./assets/workbench.png"
+    ]
   }
 }

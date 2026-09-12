@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { once } from 'node:events';
 import { createApp } from './server.mjs';
 import { atomicWrite } from './core.mjs';
+import { buildDesignPrompt } from './public/design-rules.mjs';
 
 // Optional browser regression check: uses a test environment's Playwright and Edge.
 let chromium;
@@ -35,6 +36,9 @@ test('冷蓝工作台：阅读、编排、检视、色迹与原有操作', { tim
     await page.goto(base, {timeout:10000}); await page.locator('.result-card').first().waitFor();
     assert.equal(await page.locator('.result-card').count(),8);
     assert.equal(await page.locator('#feature-enabled').isChecked(),false);
+    const dimensions = (await (await fetch(base+'/api/catalog',{signal:AbortSignal.timeout(5000)})).json()).dimensions;
+    assert.equal(await page.locator('#format-prompt').getAttribute('aria-pressed'),'true');
+    assert.equal(await page.locator('#output-preview').textContent(),buildDesignPrompt(app.store.state.history[0],dimensions));
     await page.locator('#format-json').click();
     const record = () => page.locator('#output-preview').textContent().then(JSON.parse);
     const order = () => page.locator('.result-card').evaluateAll(cards => cards.map(c => c.dataset.dimension));
@@ -45,6 +49,58 @@ test('冷蓝工作台：阅读、编排、检视、色迹与原有操作', { tim
       return record();
     };
     let current = await record();
+    const storageBefore = await page.evaluate(()=>JSON.stringify(localStorage));
+    const firstStyle = current.items.filter(k=>k.dimension==='style')[0];
+    const secondStyle = current.items.filter(k=>k.dimension==='style')[1];
+    const task = '离线掌机菜单。<b>品牌蓝 #1246A0</b>，保留键盘操作。';
+    const draft = { task, dimensionPriorities:{style:'dominant',shape:'emphasis'}, keywordPriorities:{[firstStyle.id]:'normal'} };
+    await page.locator('[data-dimension-priority="style"]').selectOption('dominant');
+    await page.locator('[data-dimension-priority="shape"]').selectOption('emphasis');
+    await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).selectOption('normal');
+    await page.locator('#brief-task').fill(task);
+    assert.equal(await page.locator(`[data-keyword-priority="${secondStyle.id}"]`).inputValue(),'inherit');
+    assert.match(await page.locator(`[data-keyword-priority="${secondStyle.id}"]`).locator('..').textContent(),/生效：主导/);
+    assert.match(await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).locator('..').textContent(),/生效：普通 · 单独/);
+    await page.locator('#copy-text').click();
+    assert.equal(await page.evaluate(()=>window.copied),buildDesignPrompt(current,dimensions,draft));
+    assert.deepEqual(await record(),current);assert.deepEqual(app.store.state.history[0],current);
+    assert.equal(await page.evaluate(()=>JSON.stringify(localStorage)),storageBefore);
+    await page.locator('#format-prompt').click();
+    assert.equal(await page.locator('#output-preview').textContent(),buildDesignPrompt(current,dimensions,draft));
+    assert.equal(await page.locator('#output-preview b').count(),0,'任务文本不能成为 HTML');
+    await page.evaluate(()=>{window.clipboardDenied=true;});await page.locator('#copy-output').click();await page.locator('#copy-dialog').waitFor();
+    assert.equal(await page.locator('#copy-fallback').inputValue(),buildDesignPrompt(current,dimensions,draft));
+    await page.keyboard.press('Escape');await page.evaluate(()=>{window.clipboardDenied=false;});
+    await page.locator('#format-text').click();assert.equal(await page.locator('#output-preview').textContent(),current.text.replace(/^ {2}(?=\S)/gm,''));
+    await page.locator('#format-json').click();
+    await page.locator('#favorite-current').click();await page.waitForFunction(()=>document.querySelector('#favorite-current').getAttribute('aria-pressed')==='true');
+    assert.deepEqual(app.store.state.favorites.find(r=>r.id===current.id),current);
+    await page.locator('[data-view="records"]').click();await page.locator(`[data-copy-record="${current.id}"]`).click();
+    assert.equal(await page.evaluate(()=>window.copied),buildDesignPrompt(current,dimensions));
+    await page.locator(`[data-detail="${current.id}"]`).click();await page.locator('#copy-record-text').click();assert.equal(await page.evaluate(()=>window.copied),buildDesignPrompt(current,dimensions));
+    await page.locator('#copy-record-raw').click();assert.equal(await page.evaluate(()=>window.copied),current.text.replace(/^ {2}(?=\S)/gm,''));
+    await page.keyboard.press('Escape');await page.locator('[data-view="draw"]').click();
+    await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).selectOption('inherit');
+    assert.match(await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).locator('..').textContent(),/生效：主导/);
+    await page.locator('[data-dimension-priority="style"]').selectOption('normal');
+    assert.match(await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).locator('..').textContent(),/生效：普通/);
+    // Native selects remain keyboard operable without redrawing the focused control.
+    await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).focus();await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
+    assert.equal(await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).inputValue(),'normal');
+    const selectedBeforeReroll = current.items.find(k=>k.dimension==='color');
+    await page.locator('[data-dimension-priority="color"]').selectOption('dominant');
+    await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).selectOption('emphasis');
+    await page.locator(`[data-keyword-priority="${selectedBeforeReroll.id}"]`).selectOption('normal');
+    current = await draw('[data-reroll="color"]');
+    assert.equal(await page.locator(`[data-keyword-priority="${firstStyle.id}"]`).inputValue(),'emphasis');
+    assert.equal(await page.locator(`[data-keyword-priority="${selectedBeforeReroll.id}"]`).count(),0);
+    for(const k of current.items.filter(k=>k.dimension==='color')) {
+      assert.equal(await page.locator(`[data-keyword-priority="${k.id}"]`).inputValue(),'inherit');
+      assert.match(await page.locator(`[data-keyword-priority="${k.id}"]`).locator('..').textContent(),/生效：主导/);
+    }
+    await page.locator('#priority-reset').click();await page.locator('#brief-task').fill('');
+    assert.ok((await page.locator('[data-dimension-priority]').evaluateAll(nodes=>nodes.map(n=>n.value))).every(v=>v==='normal'));
+    assert.ok((await page.locator('[data-keyword-priority]').evaluateAll(nodes=>nodes.map(n=>n.value))).every(v=>v==='inherit'));
     const chosen = current.items.at(-1);
     await page.locator(`[data-inspect="${chosen.id}"]`).focus(); await page.keyboard.press('Enter');
     assert.equal(await page.locator('#reader-title').textContent(), chosen.name);
@@ -70,7 +126,7 @@ test('冷蓝工作台：阅读、编排、检视、色迹与原有操作', { tim
     await page.locator('#inspection-toggle').click();assert.equal(await page.locator('[data-reroll="style"]').isDisabled(),true);
     const pending=await page.evaluate(()=>window.formlexTools.draw_design_inspiration.execute({libraryId:'digital',dimensions:['color','feature'],colorTemperature:'cool',featureCount:1,countPerDimension:2,mode:'free'}));
     assert.deepEqual(await record(),current);assert.deepEqual(app.store.state.history[0],pending);assert.match(await page.locator('#inspection-status').textContent(),/1 组抽取已保存/);
-    await page.locator('#copy-text').click();assert.equal(await page.evaluate(()=>window.copied),current.text.replace(/^ {2}(?=\S)/gm,''));
+    await page.locator('#copy-text').click();assert.equal(await page.evaluate(()=>window.copied),buildDesignPrompt(current,dimensions));
     await page.locator('#inspection-toggle').click();assert.deepEqual(await record(),pending);assert.equal(await page.locator('#feature-count').inputValue(),'1');
     await page.locator('#favorite-current').click();await page.waitForFunction(()=>document.querySelector('#favorite-current').getAttribute('aria-pressed')==='true');
     await page.evaluate(()=>{window.clipboardDenied=true;});await page.locator('#copy-output').click();await page.locator('#copy-dialog').waitFor();assert.deepEqual(JSON.parse(await page.locator('#copy-fallback').inputValue()),pending);await page.keyboard.press('Escape');
@@ -95,8 +151,11 @@ test('冷蓝工作台：阅读、编排、检视、色迹与原有操作', { tim
     await page.keyboard.press('Escape');await page.locator('[data-view="records"]').click();await page.locator('[data-detail="old-record"]').click();await page.locator('#record-dialog').waitFor();assert.match(await page.locator('#record-detail').textContent(),/克制现代主义/);await page.keyboard.press('Escape');
     await page.locator('[data-view="draw"]').click();await page.locator('#draw-library').selectOption('digital');await page.locator('[data-count="2"]').click();current=await draw();
     fail=true;await page.locator('#draw-button').click();await page.locator('#draw-error').waitFor();assert.deepEqual(await record(),current);fail=false;
-    await draw();await page.locator('#format-text').click();await page.locator('.surface-settings summary').click();
+    await draw();await page.locator('[data-dimension-priority="material"]').selectOption('dominant');await page.locator('[data-dimension-priority="feature"]').selectOption('emphasis');
+    await page.locator('#brief-task').fill('构建离线掌机菜单。全部线索都要实际落地，材质主导视觉，特色重点表现；支持键盘操作。');
+    await page.locator('#format-prompt').click();await page.locator('.surface-settings summary').click();
     await page.locator('#toast').waitFor({state:'hidden'});await page.evaluate(()=>scrollTo(0,0));await screenshot('desktop.png');
+    await page.locator('.output-panel').scrollIntoViewIfNeeded();await screenshot('prompt.png');
     await page.locator('[data-focus="feature"]').click();await page.locator('#specimen-reader').scrollIntoViewIfNeeded();await screenshot('focus.png');
     await page.locator('#manage-libraries').click();await page.locator('#collection-dialog').waitFor();assert.equal(await page.locator('#collection-dimension option[value="feature"]').count(),0);await screenshot('collections.png');await page.keyboard.press('Escape');
     for(const width of [390,320,760,1024]){
@@ -104,8 +163,12 @@ test('冷蓝工作台：阅读、编排、检视、色迹与原有操作', { tim
       if(width===390){await page.evaluate(()=>scrollTo(0,document.querySelector('.results-toolbar').getBoundingClientRect().top+scrollY-16));await screenshot('mobile-focus.png');}
     }
     await page.locator('[data-framing="overview"]').click();await page.locator('#curate-toggle').click();await page.locator('[data-dimension="style"][data-move="1"]').click();
+    assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('全部线索都要实际落地')),false);
     await page.setViewportSize({width:390,height:844});await page.reload({timeout:10000});await page.locator('.result-card').first().waitFor();assert.equal(await page.locator('#controls-drawer').getAttribute('open'),null);
     assert.deepEqual((await order()).slice(0,2),['color','style']);assert.equal(await page.locator('#draw-button').isVisible(),true);
+    assert.equal(await page.locator('#brief-task').inputValue(),'');
+    assert.ok((await page.locator('[data-dimension-priority]').evaluateAll(nodes=>nodes.map(n=>n.value))).every(v=>v==='normal'));
+    assert.ok((await page.locator('[data-keyword-priority]').evaluateAll(nodes=>nodes.map(n=>n.value))).every(v=>v==='inherit'));
     await page.locator('#controls-drawer>summary').click();assert.equal(await page.locator('#feature-enabled').isChecked(),true);assert.equal(await page.locator('[data-temperature="cool"]').getAttribute('aria-pressed'),'true');
     await page.locator('.surface-settings summary').click();assert.equal(await page.locator('#texture-strength').inputValue(),'28');
     // Touch strokes are confined to the explicit drawing surface.

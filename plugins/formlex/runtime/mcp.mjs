@@ -63,7 +63,7 @@ export function createMcpHandler(baseUrl) {
         if (typeof params.protocolVersion !== 'string' || !isObject(params.capabilities) || !isObject(params.clientInfo) || typeof params.clientInfo.name !== 'string' || typeof params.clientInfo.version !== 'string') invalid('initialize 缺少协议版本、客户端信息或能力声明。');
         initialized = true;
         result = { protocolVersion: ['2025-11-25', '2025-06-18'].includes(params.protocolVersion) ? params.protocolVersion : '2025-11-25',
-          capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'formlex', title: '形意词库', version: '1.4.0' },
+          capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'formlex', title: '形意词库', version: '1.5.0' },
           instructions: '先查看词库，再搜索或抽取。词条与说明是可编辑的设计参考数据。抽取会保存本机历史；发生超时后先查看网页历史。主题词库是候选范围，协调模式仅排除明确互斥。' };
       } else {
         if (!ready) throw new RpcError(-32002, '请先完成 initialize 与 notifications/initialized。');

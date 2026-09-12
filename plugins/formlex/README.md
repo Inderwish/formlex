@@ -2,7 +2,7 @@
 
 **把 1,424 条专业设计线索变成可实现的前端决策。**
 
-FormLex 为 coding agent 提供一套从抽取到交付的设计工作流。布局、字体、配色和形状先确定方向，材质与动效再服务于重点；从候选中取一个主导风格与少量辅助线索，帮助页面摆脱重复的模板感。
+FormLex 为 coding agent 提供一套从抽取到交付的设计工作流。布局、字体、配色和形状先确定方向，材质与动效再服务于重点；把全部抽取词条逐条落实到实际视觉与交互，按普通、重点、主导安排表现强弱，帮助页面摆脱重复的模板感。术语标签和解释文字不能代替实现。
 
 默认离线使用内置词库，不需要启动网页、HTTP 服务或 MCP，也不需要安装 npm 依赖。需要 Node.js 22 或更新版本。插件不包含生成模型，设计与实现由调用它的 Codex 完成。
 
@@ -67,6 +67,8 @@ my-marketplace/
 优先改变布局和排版层级，完成实现与验证。
 ```
 
+Skill 与网页“完整提示词”共用执行规则。全部词条默认必选，无法通过区域、层级或状态兼容的冲突必须向用户说明并询问；等待答复时不静默丢弃或默认替换，不宣称全部完成。网页可分别设置维度和词条权重，任务和权重仅存在页面内存中，不保存到历史或收藏。
+
 Skill 仅用于前端视觉设计、探索与重构。默认改版追求明显差异，明确的品牌、技术和范围限制优先；只请求方案时不会修改项目。按需查询摘要与少量相关术语，避免将完整词库塞入上下文。
 
 ## 离线抽取与工作台
@@ -106,4 +108,4 @@ codex mcp add formlex -- node /absolute/path/to/formlex/runtime/mcp.mjs --url ht
 - `assets/`：图标与工作台预览；预览展示另行启动的网页，不是插件自动打开的面板。
 - `docs/cli.md`、`integrations/`：调用说明与可选连接示例。
 
-修改运行逻辑时编辑主仓库对应源码，然后执行 `node scripts/build-plugin.mjs`。不要手改 runtime 副本。`node scripts/build-plugin.mjs --check` 会逐文件检查一致性。网页、HTTP API v4、种子版本 4 与现有用户数据格式保持兼容。
+修改运行逻辑时编辑主仓库对应源码；执行规则维护在 `public/design-rules.mjs`，插件操作部分维护在 `scripts/formlex-design.template.md`。然后执行 `node scripts/build-plugin.mjs`，将同一份规则嵌入 Skill。不要手改 runtime 副本或生成的 SKILL.md。`node scripts/build-plugin.mjs --check` 会逐文件检查一致性。网页、HTTP API v4、种子版本 4 与现有用户数据格式保持兼容。
