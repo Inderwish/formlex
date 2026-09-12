@@ -4,7 +4,25 @@
 
 以形启意，组合下一次设计。FormLex 是面向设计师与 coding agent 的设计灵感词库：收录 **1,424 条设计线索**，覆盖 **8 个常规维度 + 可选的网站特色**，每条都附有具体的前端应用说明。选一份主题词库、自己挑选术语，或从全部词库抽取，为页面找到更鲜明的视觉方向。
 
-[快速开始](#快速开始) · [主题与自选词库](#主题与自选词库) · [给 agent 的提示词](#给-agent-的提示词) · [可选 MCP](docs/mcp.md) · [HTTP API](docs/api.md)
+[Codex 插件](#codex-插件) · [快速开始](#快速开始) · [主题与自选词库](#主题与自选词库) · [离线 CLI](docs/cli.md) · [可选 MCP](docs/mcp.md) · [HTTP API](docs/api.md)
+
+## Codex 插件
+
+**让 agent 从抽取灵感直接走到前端实现。** `formlex-design` Skill 会结合页面用途，从候选中确定一个主导方向和少量辅助线索，再明确具体配色、布局、字阶与应用区域。要求改版时完成代码和效果检查；只要方案时输出设计简报。优化已有页面默认追求明显变化，同时保留业务功能与明确的品牌、技术约束。
+
+随包内置 **1,424 条词库**，默认离线运行，无需启动网页、HTTP 服务或 MCP。按需查询摘要和少量相关术语，避免完整词库占满上下文。需要个人词库、编辑词条或共享历史时，显式连接本机工作台。
+
+```sh
+codex plugin marketplace add Inderwish/formlex
+```
+
+添加来源后，在 Codex 插件页安装 **FormLex · 形意词库**，开启新任务输入：
+
+```text
+使用 $formlex-design 大胆重构这个前端，保留业务功能与技术栈，完成实现并检查窄屏效果。
+```
+
+[中文安装与使用说明](plugins/formlex/README.md) 包含 ZIP、本地来源和可选 MCP 用法。插件位于 `plugins/formlex`，仍可独立使用离线 CLI；不自动修改全局配置，也不自动启动 MCP。
 
 ## 为什么术语能帮上忙
 
@@ -160,6 +178,8 @@ node server.mjs --data-file ./my-data/state.json
 
 ## 让 agent 直接调用
 
+**不启动服务也能使用 CLI**：在源码根目录执行 `node cli.mjs libraries` 或 `node cli.mjs draw`。支持 `search`、UTF-8 JSON 参数文件、主题与色温筛选；返回结构化结果和数据来源，离线调用不保存历史。需要共享历史时使用 `--source workspace`，详见 [CLI 文档](docs/cli.md)。
+
 **MCP 是可选功能。** 直接使用网页或 HTTP API 无需配置 MCP，也不会自动启动 MCP 进程。
 
 需要工具调用时，按照 [MCP 接入说明](docs/mcp.md) 配置 stdio 连接程序，即可使用 `list_design_libraries`、`search_design_keywords`、`draw_design_inspiration`。MCP 连接已经启动的本机服务，抽取结果与网页共用历史，支持主题与个人词库、独立特色、冷暖筛选、锁定和单维重抽。
@@ -186,6 +206,8 @@ curl.exe --json '{"dimensions":["feature"],"featureCount":3}' http://127.0.0.1:3
 - `libraries.mjs`：主题词库定义；`mcp.mjs`：独立的可选 MCP 连接程序。
 - `public/`：网页界面；`server.mjs`：本机 HTTP 服务。
 - `core.mjs`：抽取、互斥规则和本地保存逻辑。
+- `catalog.mjs`、`workspace.mjs`：共享查询、统计与本机连接；`cli.mjs`：一次性离线/工作台入口。
+- `plugins/formlex/`：自包含 Codex 插件；`scripts/build-plugin.mjs`：从主源码生成运行文件并检查一致性。
 - `data/state.json`：首次运行时创建，保存词条、个人词库、历史和收藏。
 
 数据文件使用 UTF-8，通过临时文件替换保存。保存失败会报告错误；遇到损坏的数据文件时保留原文件，不会重置为初始词库。关闭服务后备份整个 `data/` 目录，即可保留个人数据；该目录已加入 Git 忽略规则。
@@ -195,10 +217,20 @@ curl.exe --json '{"dimensions":["feature"],"featureCount":3}' http://127.0.0.1:3
 运行测试：
 
 ```sh
-node --test tests.test.mjs mcp.test.mjs
+node --test tests.test.mjs mcp.test.mjs plugin.test.mjs
 ```
 
 测试覆盖 1,424 条词库完整性、主题冷暖数量、独立特色、自选范围、严格色温、抽取约束、锁定重抽、输入校验、HTTP 接口、数据迁移、持久化、快照、同源限制、保存失败及真实 stdio MCP 调用。测试使用临时数据，完成后关闭测试服务和 MCP 子进程并清理，成功时打印 `DONE`。
+
+插件测试还覆盖换目录运行、离线无网络与无安装目录写入、工作台同步、查询一致性及提交后响应中断。插件运行副本请通过 `node scripts/build-plugin.mjs` 生成，`--check` 可检查与源码逐文件一致；不要手改 runtime 副本。API 与种子版本仍为 4，本次插件入口不增加数据迁移。
+
+一次性验证并生成插件包（需要 **pwsh 7+**）：
+
+```sh
+pwsh -NoProfile -File scripts/package-plugin.ps1
+```
+
+脚本打包后在临时目录解压，运行全部 Node 测试，关闭测试进程并清理，成功后打印 `DONE`，将 `formlex-plugin.zip` 写到仓库的上一级目录。也可传 `-OutputPath` 指定文件；失败时不替换已有交付包。[验证范围与 Skill 边界](docs/plugin-validation.md)
 
 可选浏览器回归脚本为 `node --test ui.test.mjs`，使用测试环境中的 Playwright 与 Edge，验证阅读区、编排、固定检视、色迹消退与静态替代、触控、设置记忆和窄屏布局。普通启动不需要浏览器测试依赖；缺少 Playwright 时该检查会明确显示跳过。`FORMLEX_TEST_RUNTIME` 可指向已提供 Playwright 的 Node 模块解析入口，`FORMLEX_BROWSER` 可选择测试环境已有的浏览器通道；设置 `FORMLEX_PREVIEWS=1` 时同时更新预览截图。
 

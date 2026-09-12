@@ -4,8 +4,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { execFile } from 'node:child_process';
-import { AppError, object, openStore, draw, dimensions, mutateKeyword, mutateLibrary } from './core.mjs';
+import { AppError, object, openStore, draw, mutateKeyword, mutateLibrary } from './core.mjs';
 import { listLibraries } from './libraries.mjs';
+import { createCatalog } from './catalog.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const assets = new Map([
@@ -54,7 +55,7 @@ export function createApp({ dataFile = join(root, 'data', 'state.json'), write }
         const content = readFileSync(join(root, 'public', file));
         res.writeHead(200, { 'Content-Type': contentType }); res.end(method === 'HEAD' ? undefined : content); return;
       }
-      if (pathname === '/api/catalog' && method === 'GET') return json(200, { apiVersion: 4, dimensions, keywords: store.state.keywords, libraries: listLibraries(store.state), featurePool: { source: 'global', dimension: 'feature', count: store.state.keywords.filter(k => k.dimension === 'feature').length } });
+      if (pathname === '/api/catalog' && method === 'GET') return json(200, createCatalog(store.state));
       if (pathname === '/api/libraries' && method === 'GET') return json(200, listLibraries(store.state));
       if (pathname === '/api/libraries' && method === 'POST') {
         const body = await readBody(req);

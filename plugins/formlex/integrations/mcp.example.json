@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "formlex": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/formlex/runtime/mcp.mjs", "--url", "http://127.0.0.1:3000"]
+    }
+  }
+}

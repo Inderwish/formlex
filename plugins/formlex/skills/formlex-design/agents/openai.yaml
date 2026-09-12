@@ -1,0 +1,5 @@
+interface:
+  display_name: "FormLex 前端设计"
+  short_description: "从专业美术术语确定设计主次，完成有辨识度的前端设计与视觉重构。"
+  brand_color: "#2957CB"
+  default_prompt: "使用 $formlex-design 重构当前前端，保留业务功能，确定主导方向并完成代码与效果检查。"

@@ -2,6 +2,8 @@
 
 MCP 让支持工具调用的 agent 直接查看词库、搜索术语和抽取灵感。**这是可选功能**：直接使用网页和 HTTP API，无需配置或运行 MCP。
 
+Codex 插件默认使用 [离线 CLI](cli.md)，不注册 MCP。需要可选工具连接时，可使用插件内的 `runtime/mcp.mjs`；它与本页的项目根目录 `mcp.mjs` 来自同一源码，连接同一工作台并提供以下三个工具。[插件安装与连接说明](../plugins/formlex/README.md)
+
 ## 接入
 
 先正常启动 FormLex：
