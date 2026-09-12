@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { once } from 'node:events';
 import { request as httpRequest } from 'node:http';
 import { draw as drawMany, conflicts, openStore, atomicWrite, validateState, mutateKeyword, mutateLibrary } from './core.mjs';
-import { keywords, dimensions } from './seed.mjs';
+import { keywords, defaultDimensions as dimensions, dimensions as allDimensions, seedIntroduced } from './seed.mjs';
 import { extraEntries } from './seed-extra.mjs';
 import { listLibraries, themes } from './libraries.mjs';
 import { createApp } from './server.mjs';
@@ -14,7 +14,7 @@ import { createApp } from './server.mjs';
 const draw = (all, input, maxNodes) => drawMany(all, input && typeof input === 'object' && !Array.isArray(input) ? { countPerDimension: 1, ...input } : input, maxNodes);
 const key = (id, dimension, exclusions = []) => ({ id, dimension, name: id, description: `${id} 的设计说明`, conflicts: exclusions });
 const expectCode = (action, code) => assert.throws(action, error => error.code === code);
-function temp(t) { const directory = mkdtempSync(join(tmpdir(), 'design-seed-test-')); t.after(() => rmSync(directory, { recursive: true, force: true })); return join(directory, 'state.json'); }
+function temp(t) { const directory = mkdtempSync(join(tmpdir(), 'design-seed-test-')); t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 3 })); return join(directory, 'state.json'); }
 async function listen(app) { app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening'); return `http://127.0.0.1:${app.server.address().port}`; }
 async function close(app) { await new Promise(resolve => { app.server.close(resolve); app.server.closeAllConnections(); }); }
 async function request(base, path, method = 'GET', body, headers = {}) {
@@ -22,9 +22,9 @@ async function request(base, path, method = 'GET', body, headers = {}) {
   return { status: response.status, body: await response.json() };
 }
 
-test('1200 条种子词条完整、ID 唯一、互斥引用有效', () => {
-  assert.equal(keywords.length, 1200); assert.equal(new Set(keywords.map(k => k.id)).size, 1200);
-  for (const d of dimensions) assert.equal(keywords.filter(k => k.dimension === d.id).length, 150);
+test('1424 条种子词条完整、ID 唯一、互斥引用有效', () => {
+  assert.equal(keywords.length, 1424); assert.equal(new Set(keywords.map(k => k.id)).size, 1424);
+  for (const d of allDimensions) assert.equal(keywords.filter(k => k.dimension === d.id).length, d.id === 'color' ? 224 : 150);
   validateState({ version: 1, keywords, history: [], favorites: [] });
   assert.match(keywords.find(k => k.id === 'material-01').description, /晴天.*雨天.*雪天.*风天/);
 });
@@ -79,7 +79,7 @@ test('事务保存失败保留原始内存及磁盘；损坏文件不被重置',
   const store = openStore(file, (target, state) => { if (fail) throw Error('模拟磁盘只读'); atomicWrite(target, state); });
   const before = readFileSync(file, 'utf8'); fail = true;
   expectCode(() => store.transact(state => { state.keywords.pop(); }), 'SAVE_FAILED');
-  assert.equal(store.state.keywords.length, 1200); assert.equal(readFileSync(file, 'utf8'), before);
+  assert.equal(store.state.keywords.length, 1424); assert.equal(readFileSync(file, 'utf8'), before);
   for (const corrupt of ['{ broken', JSON.stringify({ version: 1, keywords: [], history: [{}], favorites: [] })]) {
     writeFileSync(file, corrupt, 'utf8'); assert.throws(() => openStore(file), /原文件已保留/); assert.equal(readFileSync(file, 'utf8'), corrupt);
   }
@@ -87,7 +87,7 @@ test('事务保存失败保留原始内存及磁盘；损坏文件不被重置',
 
 test('HTTP 全流程：编辑、并发写、互斥双向解除、历史快照、收藏与重启', { timeout: 30000 }, async t => {
   const file = temp(t); let app = createApp({ dataFile: file }); t.after(() => close(app)); let base = await listen(app);
-  const catalog = await request(base, '/api/catalog'); assert.equal(catalog.status, 200); assert.equal(catalog.body.keywords.length, 1200);
+  const catalog = await request(base, '/api/catalog'); assert.equal(catalog.status, 200); assert.equal(catalog.body.keywords.length, 1424);
   const created = await request(base, '/api/keywords', 'POST', { name: '测试风格', description: '编辑前说明', dimension: 'style', conflicts: ['color-01'] });
   assert.equal(created.status, 201); const id = created.body.id;
   const record = await request(base, '/api/draw', 'POST', { dimensions: ['style', 'color'], mode: 'free', locked: { style: id } });
@@ -100,7 +100,7 @@ test('HTTP 全流程：编辑、并发写、互斥双向解除、历史快照、
   await request(base, `/api/keywords/${id}`, 'PATCH', { name: '修改后标题', description: '修改后说明', conflicts: ['color-02'] });
   const added = await Promise.all(Array.from({ length: 4 }, (_, i) => request(base, '/api/keywords', 'POST', { name: `并发 ${i}`, description: '同时写入不会丢失', dimension: 'type' })));
   assert.ok(added.every(r => r.status === 201));
-  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 1205);
+  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 1429);
   await request(base, `/api/keywords/${id}`, 'DELETE');
   assert.ok((await request(base, '/api/catalog')).body.keywords.every(k => !k.conflicts.includes(id)));
   const stale = await request(base, '/api/draw', 'POST', { dimensions: ['style'], current: { style: id } }); assert.equal(stale.status, 400);
@@ -111,7 +111,7 @@ test('HTTP 全流程：编辑、并发写、互斥双向解除、历史快照、
   assert.equal((await request(base, '/api/history')).body.length, 100);
   assert.deepEqual((await request(base, '/api/favorites')).body[0], snapshot);
   await close(app); app = createApp({ dataFile: file }); base = await listen(app);
-  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 1204);
+  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 1428);
   assert.equal((await request(base, '/api/history')).body.length, 100);
   assert.deepEqual((await request(base, '/api/favorites')).body[0], snapshot);
   assert.equal((await request(base, `/api/favorites/${snapshot.id}`, 'DELETE')).status, 200);
@@ -182,7 +182,7 @@ test('同维互斥、候选不足、数组输入与旧单条接口兼容', () =>
 
 test('旧数据一次性升级：保留改词、删词、收藏历史，备份原文件，重启不复活已删除的新词', t => {
   const file = temp(t);
-  const originalIds = new Set(keywords.filter(k => Number(k.id.split('-')[1]) <= 20).map(k => k.id));
+  const originalIds = new Set(keywords.filter(k => seedIntroduced[k.id] === 1).map(k => k.id));
   const oldKeywords = structuredClone(keywords.filter(k => originalIds.has(k.id) && k.id !== 'style-02'));
   for (const k of oldKeywords) k.conflicts = k.conflicts.filter(id => originalIds.has(id) && id !== 'style-02');
   const edited = oldKeywords.find(k => k.id === 'style-01'); edited.name = '我自己的设计风格'; edited.description = '用户编辑内容'; edited.conflicts = [];
@@ -191,8 +191,8 @@ test('旧数据一次性升级：保留改词、删词、收藏历史，备份�
   const original = JSON.stringify({version:1,keywords:oldKeywords,history:[oldRecord],favorites:[oldRecord]});
   writeFileSync(file,original,'utf8');
   const store = openStore(file);
-  assert.equal(store.state.version,2); assert.equal(store.state.seedRevision,3); assert.equal(store.state.keywords.length,1200);
-  assert.equal(readFileSync(file+'.before-v3.bak','utf8'),original);
+  assert.equal(store.state.version,2); assert.equal(store.state.seedRevision,4); assert.equal(store.state.keywords.length,1424);
+  assert.equal(readFileSync(file+'.before-v4.bak','utf8'),original);
   assert.ok(!store.state.keywords.some(k => k.id === 'style-02'));
   assert.deepEqual(store.state.keywords.find(k => k.id === 'style-01'),edited);
   assert.deepEqual(store.state.history,[oldRecord]); assert.deepEqual(store.state.favorites,[oldRecord]);
@@ -201,7 +201,7 @@ test('旧数据一次性升级：保留改词、删词、收藏历史，备份�
   assert.ok(!again.state.keywords.some(k => k.id === 'color-50'));
   assert.equal(again.state.keywords.find(k => k.id === 'style-50').name,'新增术语也可自行修改');
   assert.equal(again.state.history.length,2); assert.deepEqual(again.state.favorites,[oldRecord]);
-  assert.equal(readFileSync(file+'.before-v3.bak','utf8'),original);
+  assert.equal(readFileSync(file+'.before-v4.bak','utf8'),original);
 });
 
 test('升级写入失败不覆盖原数据', t => {
@@ -209,22 +209,22 @@ test('升级写入失败不覆盖原数据', t => {
   writeFileSync(file,original,'utf8');
   assert.throws(() => openStore(file, () => { throw Error('模拟磁盘错误'); }), /原数据已保留/);
   assert.equal(readFileSync(file,'utf8'),original);
-  assert.equal(readFileSync(file+'.before-v3.bak','utf8'),original);
+  assert.equal(readFileSync(file+'.before-v4.bak','utf8'),original);
 });
 
 test('主题词库分配完整且每维度术语不重名，全部新增说明独立完整', () => {
   const libraries = listLibraries({ keywords });
-  assert.equal(libraries.length, 12); assert.equal(libraries[0].keywordIds.length, 1200); assert.equal(libraries[1].keywordIds.length, 400);
+  assert.equal(libraries.length, 12); assert.equal(libraries[0].keywordIds.length, 1274); assert.equal(libraries[1].keywordIds.length, 400);
   for (const dimension of dimensions) {
     const terms = keywords.filter(k => k.dimension === dimension.id);
-    assert.equal(new Set(terms.map(k => k.name)).size, 150);
+    assert.equal(new Set(terms.map(k => k.name)).size, terms.length);
     assert.equal(extraEntries[dimension.id].length, 100);
     assert.ok(extraEntries[dimension.id].every(row => row.length === 2 && row[1].length >= 20));
   }
   for (const theme of themes) {
     const library = libraries.find(l => l.id === theme.id);
-    assert.equal(library.keywordIds.length, 80);
-    for (const d of dimensions) assert.equal(keywords.filter(k => k.dimension === d.id && library.keywordIds.includes(k.id)).length, 10);
+    assert.ok(library.keywordIds.length >= 80);
+    for (const d of dimensions.filter(d => d.id !== 'color')) assert.equal(keywords.filter(k => k.dimension === d.id && library.keywordIds.includes(k.id)).length, 10);
     for (const mode of ['free', 'coordinated']) {
       const record = drawMany(keywords, { libraryId: theme.id, mode, countPerDimension: 3 });
       assert.equal(record.items.length, 24);
@@ -258,7 +258,7 @@ test('个人词库候选范围、锁定、失效词库与空范围均可解释',
 
 test('400 条词库升级保留改删、手工约束、记录与个人词库，新增范围只合并一次', t => {
   const file = temp(t);
-  const old = structuredClone(keywords.filter(k => Number(k.id.split('-')[1]) <= 50 && k.id !== 'color-21'));
+  const old = structuredClone(keywords.filter(k => seedIntroduced[k.id] <= 2 && k.id !== 'color-21'));
   old.push(key('my-private-word', 'style'));
   const ids = new Set(old.map(k => k.id));
   for (const keyword of old) keyword.conflicts = keyword.conflicts.filter(id => ids.has(id));
@@ -268,8 +268,8 @@ test('400 条词库升级保留改删、手工约束、记录与个人词库，�
   const original = JSON.stringify({ version: 2, seedRevision: 2, keywords: old, libraries: [{ id: 'my-library', name: '我的选择', keywordIds: ['my-private-word','style-50'] }], history: [record], favorites: [record] });
   writeFileSync(file, original, 'utf8');
   const store = openStore(file);
-  assert.equal(store.state.keywords.length, 1200); assert.equal(store.state.seedRevision, 3);
-  assert.equal(readFileSync(file + '.before-v3.bak', 'utf8'), original);
+  assert.equal(store.state.keywords.length, 1424); assert.equal(store.state.seedRevision, 4);
+  assert.equal(readFileSync(file + '.before-v4.bak', 'utf8'), original);
   assert.ok(!store.state.keywords.some(k => k.id === 'color-21'));
   assert.equal(store.state.keywords.find(k => k.id === 'style-50').name, '我的个人修改');
   assert.ok(!store.state.keywords.find(k => k.id === 'motion-01').conflicts.includes('motion-02'));
@@ -278,14 +278,14 @@ test('400 条词库升级保留改删、手工约束、记录与个人词库，�
   const reopened = openStore(file);
   assert.ok(!reopened.state.keywords.some(k => ['style-51','my-private-word'].includes(k.id)));
   assert.deepEqual(reopened.state.libraries[0].keywordIds, ['style-50']);
-  assert.equal(readFileSync(file + '.before-v3.bak', 'utf8'), original);
+  assert.equal(readFileSync(file + '.before-v4.bak', 'utf8'), original);
 });
 
 test('个人词库 HTTP 编辑与抽取共享历史，重启保存，删除词条清理引用', { timeout: 20000 }, async t => {
   const file = temp(t); let fail = false;
   let app = createApp({ dataFile: file, write: (path, state) => { if (fail) throw Error('磁盘失败'); atomicWrite(path, state); } });
   t.after(() => close(app)); let base = await listen(app);
-  const catalog = (await request(base, '/api/catalog')).body; assert.equal(catalog.apiVersion, 3); assert.equal(catalog.libraries.length, 12);
+  const catalog = (await request(base, '/api/catalog')).body; assert.equal(catalog.apiVersion, 4); assert.equal(catalog.libraries.length, 12);
   const created = await request(base, '/api/libraries', 'POST', { name: '窄范围', keywordIds: ['style-51','style-52','style-53'] });
   assert.equal(created.status, 201); const id = created.body.id;
   const drawn = await request(base, '/api/draw', 'POST', { libraryId: id, dimensions: ['style'], countPerDimension: 2 });
@@ -327,6 +327,138 @@ test('固定数量 1–5、五词锁定与单维重抽、数量校验及五词�
   await close(app); app = createApp({ dataFile: file }); base = await listen(app);
   assert.deepEqual((await request(base, '/api/history')).body[0], record.body);
   assert.deepEqual((await request(base, '/api/favorites')).body[0], record.body);
+});
+
+test('九维词池完整且分离，十个主题冷暖各至少五条，特色描述独立具体', () => {
+  assert.equal(allDimensions.length, 9); assert.equal(allDimensions.at(-1).id, 'feature');
+  const features = keywords.filter(k => k.dimension === 'feature');
+  assert.equal(features.length, 150); assert.equal(new Set(features.map(k => k.name)).size, 150);
+  assert.equal(new Set(features.map(k => k.description)).size, 150);
+  assert.ok(features.every(k => k.description.length >= 40));
+  const colors = keywords.filter(k => k.dimension === 'color');
+  assert.ok(colors.every(k => ['cool','warm','neutral','mixed','unspecified'].includes(k.temperature)));
+  for (const library of listLibraries({ keywords })) {
+    assert.ok(library.keywordIds.every(id => !features.some(k => k.id === id)));
+    if (!themes.some(t => t.id === library.id)) continue;
+    for (const temperature of ['cool','warm']) {
+      assert.ok(colors.filter(k => library.keywordIds.includes(k.id) && k.temperature === temperature).length >= 5, `${library.id} ${temperature}`);
+      for (const mode of ['free','coordinated']) {
+        const record = drawMany(keywords, { libraryId: library.id, dimensions: ['color','feature'], countPerDimension: 5, featureCount: 2, colorTemperature: temperature, mode });
+        assert.equal(record.items.length, 7);
+        assert.ok(record.items.filter(k => k.dimension === 'color').every(k => k.temperature === temperature && library.keywordIds.includes(k.id)));
+        assert.equal(record.featureSource, 'global');
+      }
+    }
+  }
+});
+
+test('特色默认关闭、独立 1–5 条、仅抽特色、跨词库锁定和单项重抽', () => {
+  assert.ok(drawMany(keywords, { featureCount: 5 }).items.every(k => k.dimension !== 'feature'));
+  const libraries = [{ id: 'tiny', name: '单词词库', keywordIds: ['style-01'] }];
+  for (let featureCount = 1; featureCount <= 5; featureCount++) {
+    const r = drawMany(keywords, { libraryId: 'tiny', dimensions: ['feature'], countPerDimension: 5, featureCount }, 50000, libraries);
+    assert.equal(r.items.length, featureCount); assert.ok(r.items.every(k => k.dimension === 'feature'));
+    assert.equal(r.featureSource, 'global'); assert.equal(r.featureCount, featureCount); assert.match(r.text, /网站特色：独立全局词池/);
+  }
+  const first = drawMany(keywords, { dimensions: ['style','feature'], countPerDimension: 2, featureCount: 5, mode: 'free' });
+  const current = Object.fromEntries(['style','feature'].map(d => [d, first.items.filter(k => k.dimension === d).map(k => k.id)]));
+  const second = drawMany(keywords, { libraryId: 'digital', dimensions: ['style','feature'], countPerDimension: 1, featureCount: 1, locked: { feature: current.feature }, current, mode: 'free' });
+  assert.deepEqual(second.items.filter(k => k.dimension === 'feature'), first.items.filter(k => k.dimension === 'feature'));
+  const third = drawMany(keywords, { dimensions: ['style','feature'], countPerDimension: 5, featureCount: 3, locked: { style: current.style }, current, mode: 'free' });
+  assert.deepEqual(third.items.filter(k => k.dimension === 'style'), first.items.filter(k => k.dimension === 'style'));
+  assert.ok(third.items.filter(k => k.dimension === 'feature').every(k => !current.feature.includes(k.id)));
+  assert.equal(third.items.filter(k => k.dimension === 'feature').length, 3);
+  assert.equal(drawMany(keywords, { dimensions: allDimensions.map(d => d.id), countPerDimension: 5, featureCount: 5 }).items.length, 45);
+  for (const featureCount of [0,6,1.2,'2',null]) expectCode(() => drawMany(keywords, {featureCount}), 'INVALID_INPUT');
+  expectCode(() => drawMany([], {dimensions:['feature']}), 'EMPTY_DIMENSION');
+  expectCode(() => drawMany([key('f','feature')], {dimensions:['feature'],featureCount:2}), 'INSUFFICIENT_CANDIDATES');
+  expectCode(() => drawMany(keywords, {dimensions:['feature'],current:{feature:['deleted']}}), 'INVALID_INPUT');
+});
+
+test('冷暖标签严格生效，随机包含全部分类；锁定冲突与个人候选不足不放宽范围', () => {
+  const palette = ['cool','warm','neutral','mixed','unspecified'].map(t => ({...key(t,'color'),temperature:t}));
+  const all = [...palette, key('legacy','color'), key('f','feature')];
+  for (const mode of ['free','coordinated']) {
+    for (const temperature of ['cool','warm']) assert.deepEqual(drawMany(all,{dimensions:['color'],mode,colorTemperature:temperature,countPerDimension:1}).items.map(k=>k.id),[temperature]);
+    const random = drawMany(palette, {dimensions:['color'],mode,countPerDimension:5});
+    assert.equal(new Set(random.items.map(k=>k.temperature)).size,5);
+    assert.equal(drawMany([key('legacy','color')],{dimensions:['color'],mode,countPerDimension:1}).items[0].id,'legacy');
+    expectCode(()=>drawMany(all,{dimensions:['color','feature'],mode,colorTemperature:'cool',locked:{color:['warm']}}),'LOCK_TEMPERATURE_CONFLICT');
+    const onlyFeature = drawMany(all,{dimensions:['feature'],mode,colorTemperature:'warm'});
+    assert.equal(onlyFeature.items[0].id,'f');
+    expectCode(()=>drawMany(all,{dimensions:['color'],mode,colorTemperature:'cool',countPerDimension:2}),'INSUFFICIENT_CANDIDATES');
+    const libraries=[{id:'custom',name:'没有冷色',keywordIds:['warm','mixed','neutral']}];
+    expectCode(()=>drawMany(all,{libraryId:'custom',dimensions:['color'],mode,colorTemperature:'cool',countPerDimension:1},50000,libraries),'INSUFFICIENT_CANDIDATES');
+  }
+  for(const colorTemperature of ['neutral','mixed','cold','',null]) expectCode(()=>drawMany(all,{colorTemperature}),'INVALID_INPUT');
+  const conflicting = [{...key('c','color',['f']),temperature:'cool'},key('f','feature')];
+  expectCode(()=>drawMany(conflicting,{dimensions:['color','feature'],countPerDimension:1,colorTemperature:'cool'}),'NO_COMBINATION');
+  assert.equal(drawMany(conflicting,{dimensions:['color','feature'],countPerDimension:1,colorTemperature:'cool',mode:'free'}).items.length,2);
+});
+
+test('1200 词条迁移只补新 ID 与未改写色彩分类，旧快照与个人数据保留', t => {
+  const file=temp(t);
+  const old=structuredClone(keywords.filter(k=>seedIntroduced[k.id] <= 3 && k.id !== 'color-05'));
+  const present=new Set(old.map(k=>k.id));
+  for(const k of old){delete k.temperature;k.conflicts=k.conflicts.filter(id=>present.has(id));}
+  old.find(k=>k.id==='color-03').description='用户改写冷色的用途';
+  old.find(k=>k.id==='color-06').name='用户重新命名';
+  old.find(k=>k.id==='color-08').temperature='warm';
+  const converted=old.find(k=>k.id==='style-01');converted.dimension='color';
+  old.push(key('private-color','color'));
+  const snapshot=drawMany(old,{dimensions:['color'],mode:'free'});
+  for(const field of ['featureCount','featureSource','colorTemperature'])delete snapshot[field];
+  const library={id:'my-library',name:'私人词库',keywordIds:['color-03','private-color']};
+  const original=JSON.stringify({version:2,seedRevision:3,keywords:old,libraries:[library],history:[snapshot],favorites:[snapshot]});
+  writeFileSync(file,original,'utf8');
+  const store=openStore(file);
+  assert.equal(store.state.keywords.length,1424);assert.equal(store.state.seedRevision,4);
+  assert.equal(readFileSync(file+'.before-v4.bak','utf8'),original);
+  for(const id of ['color-03','color-06','private-color','style-01'])assert.equal(store.state.keywords.find(k=>k.id===id).temperature,'unspecified');
+  assert.equal(store.state.keywords.find(k=>k.id==='color-08').temperature,'warm');
+  assert.equal(store.state.keywords.find(k=>k.id==='color-01').temperature,keywords.find(k=>k.id==='color-01').temperature);
+  assert.equal(store.state.keywords.find(k=>k.id==='color-03').description,'用户改写冷色的用途');
+  assert.ok(!store.state.keywords.some(k=>k.id==='color-05'));
+  assert.deepEqual(store.state.history,[snapshot]);assert.deepEqual(store.state.favorites,[snapshot]);assert.deepEqual(store.state.libraries,[library]);
+  store.transact(state=>{mutateKeyword(state,'DELETE','feature-01');mutateKeyword(state,'DELETE','color-151');});
+  const again=openStore(file);
+  assert.ok(!again.state.keywords.some(k=>['color-05','feature-01','color-151'].includes(k.id)));
+  assert.deepEqual(again.state.favorites,[snapshot]);
+});
+
+test('特色与色温 HTTP：元数据、编辑、冲突、保存失败及新快照重启', {timeout:15000}, async t => {
+  let fail=false;const file=temp(t);
+  let app=createApp({dataFile:file,write:(file,state)=>{if(fail)throw Error('磁盘写入失败');atomicWrite(file,state);}});
+  t.after(()=>close(app));let base=await listen(app);
+  const catalog=(await request(base,'/api/catalog')).body;
+  assert.equal(catalog.apiVersion,4);assert.equal(catalog.featurePool.count,150);
+  const input={dimensions:['color','feature'],libraryId:'digital',colorTemperature:'cool',featureCount:4,countPerDimension:5,mode:'free'};
+  const record=(await request(base,'/api/draw','POST',input)).body;
+  assert.equal(record.items.length,9);assert.equal(record.featureCount,4);assert.equal(record.featureSource,'global');
+  assert.match(record.text,/色彩筛选：冷色调/);
+  await request(base,'/api/favorites','POST',{recordId:record.id});
+  const color=record.items.find(k=>k.dimension==='color');
+  const invalid=await request(base,`/api/keywords/${color.id}`,'PATCH',{temperature:'cold'});assert.equal(invalid.status,400);
+  await request(base,`/api/keywords/${color.id}`,'PATCH',{temperature:'warm'});
+  const conflict=await request(base,'/api/draw','POST',{...input,locked:{color:[color.id]}});
+  assert.equal(conflict.status,409);assert.equal(conflict.body.error.code,'LOCK_TEMPERATURE_CONFLICT');
+  const created=await request(base,'/api/keywords','POST',{dimension:'feature',name:'我的特色画布',description:'在作品区域拖动模块，键盘提供移动按钮。'});
+  assert.equal(created.status,201);
+  const badLibrary=await request(base,'/api/libraries','POST',{name:'错误特色范围',keywordIds:[created.body.id]});assert.equal(badLibrary.status,400);
+  const normal=await request(base,'/api/keywords','POST',{dimension:'color',name:'个人配色',description:'手动标记的配色'});
+  assert.equal(normal.body.temperature,'unspecified');
+  const library=await request(base,'/api/libraries','POST',{name:'移动词条',keywordIds:[normal.body.id]});
+  await request(base,`/api/keywords/${normal.body.id}`,'PATCH',{dimension:'feature'});
+  assert.deepEqual((await request(base,'/api/libraries')).body.find(l=>l.id===library.body.id).keywordIds,[]);
+  const before=readFileSync(file,'utf8');fail=true;
+  assert.equal((await request(base,'/api/draw','POST',{...input,countPerDimension:1})).status,500);
+  assert.equal((await request(base,`/api/keywords/${color.id}`,'PATCH',{temperature:'cool'})).status,500);
+  assert.equal(readFileSync(file,'utf8'),before);fail=false;
+  await request(base,`/api/keywords/${record.items.find(k=>k.dimension==='feature').id}`,'DELETE');
+  await close(app);app=createApp({dataFile:file});base=await listen(app);
+  assert.deepEqual((await request(base,'/api/history')).body[0],record);
+  assert.deepEqual((await request(base,'/api/favorites')).body[0],record);
+  assert.equal((await request(base,'/api/catalog')).body.keywords.find(k=>k.id===color.id).temperature,'warm');
 });
 
 process.on('exit', code => { if (code === 0) console.log('DONE'); });

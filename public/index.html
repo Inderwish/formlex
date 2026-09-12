@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="形意词库 FormLex：1,200 条美术与设计术语，支持主题词库、个人自选与可选 MCP 工具，为设计师和 agent 提供构建灵感。">
+  <meta name="description" content="形意词库 FormLex：1,424 条美术与设计术语，支持主题词库、独立网站特色、冷暖筛选与可选 MCP 工具，为设计师和 agent 提供构建灵感。">
   <meta name="theme-color" content="#f2f3ef">
   <title>形意词库 — FormLex</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -24,7 +24,7 @@
   <main id="main" tabindex="-1">
     <div id="global-error" class="error-banner" role="alert" hidden></div>
     <section id="view-draw" aria-labelledby="draw-title">
-      <div class="page-heading"><div><p class="eyebrow">THE COMPOSITION ROOM <span>01 — 08</span></p><h1 id="draw-title">灵感构成室<span class="heading-dot" aria-hidden="true">.</span></h1><p class="subtitle">从八个维度取样，组合下一次设计。</p></div><div class="library-count"><span class="count-caption">THE COLLECTION</span><div><strong id="keyword-count">—</strong><span>设计词条<br>八种观察角度</span></div></div></div>
+      <div class="page-heading"><div><p class="eyebrow">THE COMPOSITION ROOM <span>08 + 01</span></p><h1 id="draw-title">灵感构成室<span class="heading-dot" aria-hidden="true">.</span></h1><p class="subtitle">八个设计维度，加一点属于网站的特色。</p></div><div class="library-count"><span class="count-caption">THE COLLECTION</span><div><strong id="keyword-count">—</strong><span>设计词条<br>九种观察角度</span></div></div></div>
       <div class="workspace">
         <section class="source-panel" aria-label="选择抽取词库"><div><span class="eyebrow">YOUR COLLECTION</span><label for="draw-library">从哪一份词库取样</label></div><select id="draw-library" aria-describedby="pool-summary"><option value="all">全部词库</option></select><button id="manage-libraries" class="button" type="button"><span data-icon="sliders"></span>自选词库</button><p id="pool-summary" class="control-caption" role="status">正在读取词库…</p></section>
         <aside class="config-panel" aria-label="抽取设置">
@@ -33,10 +33,14 @@
             <label class="mode-option"><input type="radio" name="mode" value="coordinated" checked><span><strong>协调模式</strong><small>排除明确互斥</small></span><span class="radio-dot" aria-hidden="true"></span></label>
             <label class="mode-option"><input type="radio" name="mode" value="free"><span><strong>自由模式</strong><small>让不同风格相遇</small></span><span class="radio-dot" aria-hidden="true"></span></label>
           </fieldset>
-          <fieldset class="count-setting"><legend>每维度词条数</legend><div id="draw-count" class="segmented" role="group" aria-label="每维度词条数"><button type="button" data-count="1" aria-pressed="false">1 条</button><button type="button" data-count="2" aria-pressed="false">2 条</button><button type="button" data-count="3" aria-pressed="false">3 条</button><button type="button" data-count="4" aria-pressed="false">4 条</button><button type="button" data-count="5" aria-pressed="false">5 条</button><button type="button" data-count="random" aria-label="随机 2–3 条" aria-pressed="true">2–3</button></div><p class="control-caption" id="count-caption">各维度独立随机</p></fieldset>
+          <fieldset class="count-setting"><legend>常规维度词条数</legend><div id="draw-count" class="segmented" role="group" aria-label="每维度词条数"><button type="button" data-count="1" aria-pressed="false">1 条</button><button type="button" data-count="2" aria-pressed="false">2 条</button><button type="button" data-count="3" aria-pressed="false">3 条</button><button type="button" data-count="4" aria-pressed="false">4 条</button><button type="button" data-count="5" aria-pressed="false">5 条</button><button type="button" data-count="random" aria-label="随机 2–3 条" aria-pressed="true">2–3</button></div><p class="control-caption" id="count-caption">各维度独立随机</p></fieldset>
           <div class="draw-actions"><button id="draw-button" class="primary-button" type="button"><span data-icon="shuffle"></span><span id="draw-button-label">抽取一组灵感</span></button><p id="lock-hint">每个维度随机抽取 2–3 条</p></div>
           <fieldset class="dimensions-field"><legend>取样范围 <span id="selected-count">8 / 8</span></legend><div id="dimension-options" class="dimension-options"></div></fieldset>
         </aside>
+        <section class="creative-options" aria-label="色彩与网站特色">
+          <fieldset class="temperature-setting"><legend>色彩倾向</legend><div id="color-temperature" class="segmented" role="group" aria-label="色彩温度"><button type="button" data-temperature="random" aria-pressed="true">随机</button><button type="button" data-temperature="cool" aria-pressed="false">冷色调</button><button type="button" data-temperature="warm" aria-pressed="false">暖色调</button></div><p class="control-caption">只筛选色彩维度 · 中性与混合配色仅参与随机</p></fieldset>
+          <div class="feature-setting"><div class="feature-heading"><label class="feature-toggle"><input id="feature-enabled" type="checkbox" aria-describedby="feature-pool-count"><span>添加特色<small>SIGNATURE ELEMENT</small></span></label><label class="feature-count-label" for="feature-count">独立数量<select id="feature-count" disabled><option value="1">1 条</option><option value="2">2 条</option><option value="3">3 条</option><option value="4">4 条</option><option value="5">5 条</option></select></label></div><p class="control-caption" id="feature-pool-count">150 条独立候选 · 不受主题或个人词库限制</p></div>
+        </section>
         <div class="results-column">
           <div class="results-toolbar"><div><span class="section-index">01</span><h2>本次构成</h2><span id="result-meta" class="result-meta">准备就绪</span></div><div class="toolbar-actions"><button id="favorite-current" class="button" type="button" disabled><span data-icon="star"></span><span>收藏组合</span></button><button id="copy-text" class="button" type="button" disabled><span data-icon="copy"></span>复制文本</button></div></div>
           <div class="view-tools"><div class="view-tool-group"><span class="tool-label">取景</span><div class="segmented" id="view-mode" role="group" aria-label="取景方式"><button type="button" data-framing="overview" aria-pressed="true">全览</button><button type="button" data-framing="focus" aria-pressed="false">单维聚焦</button></div></div><div class="view-tool-group spacing-tools"><span class="tool-label">留白</span><div class="segmented" id="spacing-mode" role="group" aria-label="留白档位"><button type="button" data-spacing="compact" aria-pressed="false">紧凑</button><button type="button" data-spacing="balanced" aria-pressed="true">均衡</button><button type="button" data-spacing="spacious" aria-pressed="false">舒展</button></div><button id="measure-toggle" class="measure-button" type="button" aria-pressed="false" title="显示实际卡片间距与内边距"><span data-icon="ruler"></span>标尺</button></div></div>
@@ -49,7 +53,7 @@
     </section>
     <section id="view-library" aria-labelledby="library-title" hidden>
       <div class="page-heading"><div><p class="eyebrow">KEYWORD LIBRARY <span>/ 02</span></p><h1 id="library-title">让词库长成你的样子</h1><p class="subtitle">具体的关键词，让灵感更容易落地。</p></div><button id="add-keyword" class="primary-button" type="button"><span data-icon="plus"></span>新增词条</button></div>
-      <div class="library-tools"><label class="search-field"><span data-icon="search"></span><input id="library-search" type="search" placeholder="搜索关键词或设计说明" aria-label="搜索关键词或设计说明"></label><label class="filter-field">词库<select id="library-source"><option value="all">全部词库</option></select></label><label class="filter-field">维度<select id="library-dimension"><option value="">全部维度</option></select></label><span id="library-visible-count" class="muted"></span><button id="refresh-library" class="button" type="button"><span data-icon="refresh"></span>刷新词库</button></div>
+      <div class="library-tools"><label class="search-field"><span data-icon="search"></span><input id="library-search" type="search" placeholder="搜索关键词或设计说明" aria-label="搜索关键词或设计说明"></label><label class="filter-field">词库<select id="library-source"><option value="all">全部词库</option></select></label><label class="filter-field">维度<select id="library-dimension"><option value="">全部维度</option></select></label><label class="filter-field">色温<select id="library-temperature" disabled><option value="">全部分类</option><option value="cool">冷色</option><option value="warm">暖色</option><option value="neutral">中性</option><option value="mixed">混合</option><option value="unspecified">未分类</option></select></label><span id="library-visible-count" class="muted"></span><button id="refresh-library" class="button" type="button"><span data-icon="refresh"></span>刷新词库</button></div>
       <div id="library-list" class="library-list"></div>
       <button id="library-more" class="button more-button" type="button" hidden>显示更多词条</button>
     </section>
@@ -62,7 +66,7 @@
   </main>
   <dialog id="collection-dialog" aria-labelledby="collection-title">
     <form id="collection-form"><div class="dialog-header"><div><p class="eyebrow">CURATE YOUR VOCABULARY</p><h2 id="collection-title">自选词库</h2></div><button class="icon-button" type="button" data-close="collection-dialog" aria-label="关闭自选词库"><span data-icon="close"></span></button></div>
-      <p class="muted">从主题词库开始，或逐条挑选。保存后，网页与 agent 都能从这份范围中抽取。</p>
+      <p class="muted">从主题词库开始，或逐条挑选前八个维度。网站特色从完整特色池独立抽取，不加入个人词库。</p>
       <div id="collection-error" class="error-banner" role="alert" hidden></div>
       <div class="form-row"><label>编辑个人词库<select id="collection-edit-select"><option value="">新建个人词库</option></select></label><label>词库名称<input id="collection-name" maxlength="60" required placeholder="例如：我的建筑感工作台"></label></div>
       <div id="collection-counts" class="collection-counts" role="status"></div>
@@ -77,6 +81,7 @@
     <form id="editor-form"><div class="dialog-header"><div><p class="eyebrow">EDIT KEYWORD</p><h2 id="editor-title">新增词条</h2></div><button class="icon-button" type="button" data-close="editor-dialog" aria-label="关闭词条编辑器"><span data-icon="close"></span></button></div>
       <div id="editor-error" class="error-banner" role="alert" hidden></div>
       <div class="form-row"><label>所属维度<select id="edit-dimension" required></select></label><label>关键词<input id="edit-name" maxlength="80" required placeholder="例如：天气响应表面"></label></div>
+      <label class="form-label" id="edit-temperature-field" hidden>色温分类<select id="edit-temperature"><option value="unspecified">未分类</option><option value="cool">冷色</option><option value="warm">暖色</option><option value="neutral">中性</option><option value="mixed">混合</option></select><span class="control-caption">按实际配色标注；中性、混合与未分类只参与随机抽取。</span></label>
       <label class="form-label">设计说明<textarea id="edit-description" rows="4" maxlength="2000" required placeholder="描述它会如何改变界面的布局、视觉或交互。"></textarea></label>
       <fieldset class="conflicts-field"><legend>互斥词条 <span id="conflict-count">0 项</span></legend><p>协调模式不会把这些词条与当前词条放在同一组。任一方向设置即生效。</p><input id="conflict-search" type="search" aria-label="搜索互斥候选词条" placeholder="搜索需要排除的词条"><div id="conflict-options" class="conflict-options"></div></fieldset>
       <div class="dialog-actions"><span>修改将保存到本地词库</span><button type="button" class="button" data-close="editor-dialog">取消</button><button type="submit" id="save-keyword" class="primary-button">保存词条</button></div>

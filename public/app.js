@@ -21,7 +21,7 @@ const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 $$('[data-icon]').forEach(node => { node.innerHTML = icon(node.dataset.icon); });
 
 const state = { catalog: { dimensions: [], keywords: [], libraries: [] }, selected: [], libraryId: 'all', libraryLimit: 80, collectionLimit: 80, collectionSelection: new Set(), collectionBusy: false, mode: 'coordinated', countPerDimension: 'random', locked: {}, result: null,
-  history: [], favorites: [], view: 'draw', recordKind: 'favorites', format: 'text', busy: false,
+  history: [], favorites: [], view: 'draw', recordKind: 'favorites', format: 'text', busy: false, featureCount: 1, colorTemperature: 'random',
   editing: null, conflictSelection: new Set(), detail: null, framing: 'overview', focusDimension: 'style', spacing: 'balanced', measuring: false };
 const dim = id => state.catalog.dimensions.find(d => d.id === id);
 const groups = items => state.catalog.dimensions.map(d => ({ ...d, items: items.filter(k => k.dimension === d.id) })).filter(g => g.items.length);
@@ -29,6 +29,12 @@ const idsByDimension = items => Object.fromEntries(groups(items).map(g => [g.id,
 // Avoid leading spaces that rich-text editors may serialize as HTML whitespace entities.
 const textOf = record => record.text.replace(/^ {2}(?=\S)/gm, '');
 const modeName = mode => mode === 'coordinated' ? '协调模式' : '自由模式';
+const temperatureName = value => ({ random: '随机（不限冷暖）', cool: '冷色调', warm: '暖色调', neutral: '中性', mixed: '混合', unspecified: '未分类' })[value ?? 'unspecified'];
+const regularDimensions = () => state.catalog.dimensions.filter(d => d.id !== 'feature');
+function rememberOptions() {
+  try { for (const [key, value] of Object.entries({ featureEnabled: state.selected.includes('feature'), featureCount: state.featureCount, colorTemperature: state.colorTemperature })) localStorage.setItem(`formlex.${key}`, String(value)); }
+  catch { /* Selections still work without local storage. */ }
+}
 const date = value => new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 let toastTimer;
 function toast(message) { $('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 4200); }
@@ -50,7 +56,7 @@ async function api(path, method = 'GET', body) {
 
 async function refreshCatalog() {
   state.catalog = await api('/api/catalog');
-  if (state.catalog.apiVersion !== 3) throw Error('服务版本需要更新。请关闭旧服务窗口，重新双击桌面的「启动灵感采样.bat」，再刷新页面。');
+  if (state.catalog.apiVersion !== 4) throw Error('服务版本需要更新。请关闭旧服务窗口，重新双击桌面的「启动灵感采样.bat」，再刷新页面。');
   state.locked = Object.fromEntries(Object.entries(state.locked).filter(([dimension, ids]) => ids.every(id => state.catalog.keywords.some(k => k.id === id && k.dimension === dimension))));
   $('#keyword-count').textContent = state.catalog.keywords.length;
   renderLibraryChoices();
@@ -59,7 +65,7 @@ async function refreshCatalog() {
   $('#library-dimension').innerHTML = '<option value="">全部维度</option>' + options;
   $('#library-dimension').value = previousFilter;
   $('#edit-dimension').innerHTML = options;
-  $('#collection-dimension').innerHTML = '<option value="">全部维度</option>' + options;
+  $('#collection-dimension').innerHTML = '<option value="">全部常规维度</option>' + regularDimensions().map(d => `<option value="${d.id}">${d.name}</option>`).join('');
   renderLibrary(); updateDrawControls();
 }
 
@@ -83,9 +89,10 @@ function renderLibraryChoices() {
 function renderDimensions() {
   const pool = poolKeywords();
   const library = state.catalog.libraries.find(l => l.id === state.libraryId);
-  $('#pool-summary').textContent = `${pool.length} 条候选 · ${library?.description ?? '只从你挑选的词条中组合灵感。'}`;
-  $('#dimension-options').innerHTML = state.catalog.dimensions.map(d => {
-    const count = pool.filter(k => k.dimension === d.id).length;
+  $('#pool-summary').textContent = `${pool.length} 条常规候选 · ${library?.description ?? '只从你挑选的词条中组合灵感。'}`;
+  $('#feature-pool-count').textContent = `${state.catalog.featurePool?.count ?? 0} 条独立候选 · 不受主题或个人词库限制`;
+  $('#dimension-options').innerHTML = regularDimensions().map(d => {
+    const count = pool.filter(k => k.dimension === d.id && (d.id !== 'color' || state.colorTemperature === 'random' || k.temperature === state.colorTemperature)).length;
     return `<label class="dimension-choice" title="${d.name}有 ${count} 条候选"><input type="checkbox" value="${d.id}" ${state.selected.includes(d.id) ? 'checked' : ''}><span>${d.name}</span><small>${count}</small></label>`;
   }).join('');
 }
@@ -93,7 +100,9 @@ function applyLibrary(id) {
   if (!state.catalog.libraries.some(l => l.id === id)) throw Error('所选词库已失效，请刷新词库。');
   state.libraryId = id;
   const available = new Set(poolKeywords().map(k => k.dimension));
-  state.selected = state.catalog.dimensions.filter(d => available.has(d.id) || state.locked[d.id]).map(d => d.id);
+  const featureEnabled = state.selected.includes('feature');
+  state.selected = regularDimensions().filter(d => available.has(d.id) || state.locked[d.id]).map(d => d.id);
+  if (featureEnabled) state.selected.push('feature');
   try { localStorage.setItem('formlex.libraryId', id); } catch { /* Saving the library itself is handled by the server. */ }
   renderLibraryChoices(); renderDraw();
 }
@@ -111,11 +120,11 @@ async function openCollection() {
 function collectionMatches() {
   const query = $('#collection-search').value.trim().toLocaleLowerCase();
   const dimension = $('#collection-dimension').value;
-  return state.catalog.keywords.filter(k => (!dimension || k.dimension === dimension) && (!$('#collection-selected-only').checked || state.collectionSelection.has(k.id)) && `${k.name} ${k.description}`.toLocaleLowerCase().includes(query));
+  return state.catalog.keywords.filter(k => k.dimension !== 'feature' && (!dimension || k.dimension === dimension) && (!$('#collection-selected-only').checked || state.collectionSelection.has(k.id)) && `${k.name} ${k.description}`.toLocaleLowerCase().includes(query));
 }
 function renderCollection(keepList = false) {
   const selected = state.catalog.keywords.filter(k => state.collectionSelection.has(k.id));
-  $('#collection-counts').innerHTML = `<strong>已选 ${selected.length} 条</strong>` + state.catalog.dimensions.map(d => `<span>${d.name} <b>${selected.filter(k => k.dimension === d.id).length}</b></span>`).join('');
+  $('#collection-counts').innerHTML = `<strong>已选 ${selected.length} 条</strong>` + regularDimensions().map(d => `<span>${d.name} <b>${selected.filter(k => k.dimension === d.id).length}</b></span>`).join('');
   const matches = collectionMatches();
   $('#collection-add-filtered').textContent = `选入筛选结果（${matches.length}）`;
   if (!keepList) $('#collection-options').innerHTML = matches.length ? matches.slice(0, state.collectionLimit).map(k => `<label class="collection-option"><input type="checkbox" value="${k.id}" ${state.collectionSelection.has(k.id) ? 'checked' : ''}><span><strong>${escape(k.name)}</strong><small>${escape(k.description)}</small></span><span class="dimension-tag">${dim(k.dimension).name}</span></label>`).join('') : '<p class="empty-state">没有匹配的词条，可更换关键词或维度。</p>';
@@ -149,18 +158,22 @@ async function switchView(view) {
 
 function updateDrawControls() {
   const lockedCount = state.selected.filter(d => state.locked[d]).length;
-  $('#selected-count').textContent = `${state.selected.length} / 8`;
+  $('#selected-count').textContent = `${state.selected.filter(d => d !== 'feature').length} / 8`;
+  $('#feature-enabled').checked = state.selected.includes('feature');
+  $('#feature-count').value = String(state.featureCount);
+  $('#feature-count').disabled = state.busy || !state.selected.includes('feature');
+  $$('#color-temperature button').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.temperature === state.colorTemperature)); button.disabled = state.busy || !state.selected.includes('color'); });
   $('#draw-button').disabled = state.busy || !state.selected.length || lockedCount === state.selected.length;
   $('#draw-button-label').textContent = state.busy ? '正在组合…' : lockedCount ? '重抽未锁定维度' : '抽取一组灵感';
-  $('#lock-hint').textContent = !state.selected.length ? '至少选择一个维度' : lockedCount === state.selected.length ? '全部已锁定，解锁后可继续抽取' : lockedCount ? `锁定 ${lockedCount} 个维度 · 保留整组词条` : state.countPerDimension === 'random' ? '每个维度随机抽取 2–3 条' : `每个维度抽取 ${state.countPerDimension} 条`;
-  $$('#dimension-options input, input[name="mode"], #draw-count button, #draw-library, #manage-libraries').forEach(input => { input.disabled = state.busy; });
+  $('#lock-hint').textContent = !state.selected.length ? '至少选择一个维度' : lockedCount === state.selected.length ? '全部已锁定，解锁后可继续抽取' : lockedCount ? `锁定 ${lockedCount} 个维度 · 保留整组词条` : state.countPerDimension === 'random' ? '常规维度随机 2–3 条' : `常规维度抽取 ${state.countPerDimension} 条`;
+  $$('#dimension-options input, input[name="mode"], #draw-count button, #draw-library, #manage-libraries, #feature-enabled').forEach(input => { input.disabled = state.busy; });
   $$('#draw-count button').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.count === String(state.countPerDimension))); });
   $('#count-caption').textContent = state.countPerDimension === 'random' ? '各维度独立随机' : '锁定组保持原来的词条数';
   $$('[data-reroll], [data-lock]').forEach(button => { button.disabled = state.busy || !state.selected.includes(button.dataset.reroll ?? button.dataset.lock) || (button.hasAttribute('data-reroll') && Boolean(state.locked[button.dataset.reroll])); });
   if (state.result) {
     const count = groups(state.result.items).length;
     const sameDimensions = count === state.selected.length && state.result.items.every(k => state.selected.includes(k.dimension));
-    $('#result-meta').textContent = state.libraryId !== (state.result.library?.id ?? 'all') || state.mode !== state.result.mode || !sameDimensions || (state.result.countPerDimension ?? 1) !== state.countPerDimension ? '设置已更改 · 下次抽取生效' : `${state.result.library?.name ?? '全部词库'} · ${modeName(state.result.mode)} · ${state.result.items.length} 条`;
+    $('#result-meta').textContent = state.libraryId !== (state.result.library?.id ?? 'all') || state.mode !== state.result.mode || !sameDimensions || (state.result.countPerDimension ?? 1) !== state.countPerDimension || (state.result.colorTemperature ?? 'random') !== state.colorTemperature || (state.result.featureCount ?? 1) !== state.featureCount ? '设置已更改 · 下次抽取生效' : `${state.result.library?.name ?? '全部词库'} · ${modeName(state.result.mode)} · ${state.result.items.length} 条`;
   }
 }
 function updateFavoriteButton() {
@@ -176,7 +189,7 @@ function renderDraw() {
     $('#result-grid').innerHTML = groups(state.result.items).map(group => {
       const locked = Boolean(state.locked[group.id]);
       const index = state.catalog.dimensions.findIndex(d => d.id === group.id) + 1;
-      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索</span>${locked ? '<span class="locked-label">整组已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><div class="keyword-stack">${group.items.map(k => `<section class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p></section>`).join('')}</div></article>`;
+      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索${group.id === 'feature' ? ' · 独立特色池' : ''}</span>${locked ? '<span class="locked-label">整组已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><div class="keyword-stack">${group.items.map(k => `<section class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p></section>`).join('')}</div></article>`;
     }).join('');
     $('#dimension-index').innerHTML = groups(state.result.items).map(group => `<button type="button" data-focus="${group.id}" aria-label="聚焦${group.name}" aria-pressed="false"><span>${String(state.catalog.dimensions.findIndex(d => d.id === group.id) + 1).padStart(2, '0')}</span><small>${group.name}</small></button>`).join('');
   }
@@ -221,7 +234,7 @@ function drawInput(target) {
   const current = idsByDimension(valid);
   if (target && (old.length !== valid.length || state.selected.some(d => !current[d]))) throw Error('当前组合包含失效词条或新增维度，请先整组抽取，再进行单项重抽。');
   const locked = target ? Object.fromEntries(Object.entries(current).filter(([dimension]) => dimension !== target)) : { ...state.locked };
-  return { dimensions: [...state.selected], libraryId: state.libraryId, mode: state.mode, countPerDimension: state.countPerDimension, locked, current };
+  return { dimensions: [...state.selected], libraryId: state.libraryId, mode: state.mode, countPerDimension: state.countPerDimension, featureCount: state.featureCount, colorTemperature: state.colorTemperature, locked, current };
 }
 async function performDraw(input = drawInput(), { tool = false } = {}) {
   if (state.busy) throw Error('正在执行抽取，请稍后重试。');
@@ -231,6 +244,7 @@ async function performDraw(input = drawInput(), { tool = false } = {}) {
     if (tool) {
       state.libraryId = record.library?.id ?? 'all';
       state.selected = [...new Set(record.items.map(k => k.dimension))]; state.mode = record.mode; state.countPerDimension = record.countPerDimension;
+      state.featureCount = record.featureCount ?? 1; state.colorTemperature = record.colorTemperature ?? 'random'; rememberOptions();
       state.locked = Object.fromEntries(Object.entries(input.locked ?? {}).map(([d, ids]) => [d, Array.isArray(ids) ? ids : [ids]]));
       $$('#dimension-options input').forEach(node => { node.checked = state.selected.includes(node.value); });
       $$('input[name="mode"]').forEach(node => { node.checked = node.value === state.mode; });
@@ -259,12 +273,17 @@ function relations(keyword) { return state.catalog.keywords.filter(k => k.id !==
 function renderLibrary() {
   const query = $('#library-search').value.trim().toLocaleLowerCase();
   const dimension = $('#library-dimension').value;
-  const items = poolKeywords($('#library-source').value).filter(k => (!dimension || k.dimension === dimension) && `${k.name} ${k.description}`.toLocaleLowerCase().includes(query));
-  $('#library-visible-count').textContent = `${items.length} 条词条`;
+  const feature = dimension === 'feature';
+  $('#library-source').disabled = feature;
+  $('#library-temperature').disabled = dimension !== 'color';
+  const temperature = dimension === 'color' ? $('#library-temperature').value : '';
+  const source = feature ? state.catalog.keywords.filter(k => k.dimension === 'feature') : poolKeywords($('#library-source').value);
+  const items = source.filter(k => (!dimension || k.dimension === dimension) && (!temperature || (k.temperature ?? 'unspecified') === temperature) && `${k.name} ${k.description}`.toLocaleLowerCase().includes(query));
+  $('#library-visible-count').textContent = `${items.length} 条${feature ? '独立特色' : '常规词条'}`;
   $('#library-more').hidden = items.length <= state.libraryLimit;
   $('#library-list').innerHTML = items.length ? items.slice(0, state.libraryLimit).map(k => {
     const related = relations(k);
-    return `<article class="library-row"><span class="dimension-tag">${dim(k.dimension).name}</span><div><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p>${related.length ? `<span class="conflict-hint">与 ${related.length} 条词条互斥</span>` : ''}</div><div class="row-actions"><button type="button" class="icon-button" data-edit="${k.id}" aria-label="编辑${escape(k.name)}" title="编辑词条">${icon('edit')}</button><button type="button" class="icon-button danger" data-delete="${k.id}" aria-label="删除${escape(k.name)}" title="删除词条">${icon('trash')}</button></div></article>`;
+    return `<article class="library-row"><span class="dimension-tag">${dim(k.dimension).name}</span><div><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p>${k.dimension === 'color' ? `<span class="temperature-tag">${temperatureName(k.temperature)}</span>` : ''}${related.length ? `<span class="conflict-hint">与 ${related.length} 条词条互斥</span>` : ''}</div><div class="row-actions"><button type="button" class="icon-button" data-edit="${k.id}" aria-label="编辑${escape(k.name)}" title="编辑词条">${icon('edit')}</button><button type="button" class="icon-button danger" data-delete="${k.id}" aria-label="删除${escape(k.name)}" title="删除词条">${icon('trash')}</button></div></article>`;
   }).join('') : `<div class="empty-state">${icon('search')}<h3>还没有匹配的词条</h3><p>试试其他关键词，或新增一条设计灵感。</p></div>`;
 }
 async function openEditor(id) {
@@ -275,6 +294,8 @@ async function openEditor(id) {
   state.conflictSelection = new Set(keyword ? relations(keyword).map(k => k.id) : []);
   $('#editor-title').textContent = keyword ? '编辑词条' : '新增词条';
   $('#edit-dimension').value = keyword?.dimension ?? ($('#library-dimension').value || 'style');
+  $('#edit-temperature').value = keyword?.temperature ?? 'unspecified';
+  $('#edit-temperature-field').hidden = $('#edit-dimension').value !== 'color';
   $('#edit-name').value = keyword?.name ?? ''; $('#edit-description').value = keyword?.description ?? ''; $('#conflict-search').value = '';
   showError('#editor-error', ''); renderConflicts(); $('#editor-dialog').showModal(); $('#edit-name').focus();
 }
@@ -289,6 +310,7 @@ async function saveKeyword(event) {
   const button = $('#save-keyword'); button.disabled = true; button.textContent = '保存中…'; showError('#editor-error', '');
   try {
     const body = { dimension: $('#edit-dimension').value, name: $('#edit-name').value, description: $('#edit-description').value, conflicts: [...state.conflictSelection] };
+    if (body.dimension === 'color') body.temperature = $('#edit-temperature').value;
     await api(state.editing ? `/api/keywords/${state.editing.id}` : '/api/keywords', state.editing ? 'PATCH' : 'POST', body);
     $('#editor-dialog').close(); toast('词条已保存'); await refreshCatalog();
   } catch (error) { if ($('#editor-dialog').open) showError('#editor-error', error.message); else showError('#global-error', error.message); }
@@ -308,17 +330,24 @@ function recordById(id) { return [...state.favorites, ...state.history].find(r =
 function openRecord(record) {
   state.detail = record;
   $('#record-title').textContent = `${modeName(record.mode)} · ${groups(record.items).length} 个维度 / ${record.items.length} 条`;
-  $('#record-detail').innerHTML = `<p class="muted">${date(record.createdAt)} · ${escape(record.library?.name ?? '全部词库')} · 保存时的内容快照</p>` + groups(record.items).map(group => `<section class="record-detail-item"><span class="dimension-tag">${group.name} · ${group.items.length} 条</span>${group.items.map(k => `<div class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p></div>`).join('')}</section>`).join('');
+  $('#record-detail').innerHTML = `<p class="muted">${date(record.createdAt)} · ${escape(record.library?.name ?? '全部词库')}${record.colorTemperature ? ` · 色彩：${temperatureName(record.colorTemperature)}` : ''}${record.featureSource === 'global' ? ` · 独立特色池（数量设置 ${record.featureCount ?? 1} 条）` : ''} · 保存时的内容快照</p>` + groups(record.items).map(group => `<section class="record-detail-item"><span class="dimension-tag">${group.name} · ${group.items.length} 条</span>${group.items.map(k => `<div class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p></div>`).join('')}</section>`).join('');
   $('#record-dialog').showModal();
 }
 
 on('.main-nav', 'click', event => { const button = event.target.closest('[data-view]'); if (button) return switchView(button.dataset.view); });
 on('.brand', 'click', event => { event.preventDefault(); return switchView('draw'); });
 on('#dimension-options', 'change', () => {
-  state.selected = $$('#dimension-options input:checked').map(node => node.value);
+  state.selected = [...$$('#dimension-options input:checked').map(node => node.value), ...(state.selected.includes('feature') ? ['feature'] : [])];
   state.locked = Object.fromEntries(Object.entries(state.locked).filter(([key]) => state.selected.includes(key)));
   renderDraw();
 });
+on('#feature-enabled', 'change', () => {
+  state.selected = state.selected.filter(d => d !== 'feature');
+  if ($('#feature-enabled').checked) state.selected.push('feature'); else delete state.locked.feature;
+  rememberOptions(); renderDraw();
+});
+on('#feature-count', 'change', () => { state.featureCount = Number($('#feature-count').value); rememberOptions(); updateDrawControls(); });
+on('#color-temperature', 'click', event => { const button = event.target.closest('[data-temperature]'); if (!button || button.disabled) return; state.colorTemperature = button.dataset.temperature; rememberOptions(); renderDimensions(); updateDrawControls(); });
 on('.mode-field', 'change', () => { state.mode = $('input[name="mode"]:checked').value; updateDrawControls(); });
 on('#draw-count', 'click', event => { const button = event.target.closest('[data-count]'); if (!button || button.disabled) return; state.countPerDimension = button.dataset.count === 'random' ? 'random' : Number(button.dataset.count); try { localStorage.setItem('formlex.countPerDimension', String(state.countPerDimension)); } catch { /* The current selection still works without local storage. */ } updateDrawControls(); });
 on('#view-mode', 'click', event => { const button = event.target.closest('button[data-framing]'); if (!button || button.disabled) return; state.framing = button.dataset.framing; renderFrame(); });
@@ -364,7 +393,7 @@ on('#collection-delete', 'click', async () => {
   try { await api(`/api/libraries/${id}`, 'DELETE'); await refreshCatalog(); $('#collection-dialog').close(); renderDraw(); toast('个人词库已删除，词条仍在全部词库中'); }
   catch (error) { showError('#collection-error', error.message); }
 });
-for (const selector of ['#library-search', '#library-dimension', '#library-source']) on(selector, selector === '#library-search' ? 'input' : 'change', () => { state.libraryLimit = 80; renderLibrary(); });
+for (const selector of ['#library-search', '#library-dimension', '#library-source', '#library-temperature']) on(selector, selector === '#library-search' ? 'input' : 'change', () => { state.libraryLimit = 80; renderLibrary(); });
 on('#library-more', 'click', () => { state.libraryLimit += 80; renderLibrary(); });
 on('#refresh-library', 'click', async () => { await refreshCatalog(); toast('词库已刷新'); });
 on('#add-keyword', 'click', () => openEditor());
@@ -379,6 +408,7 @@ on('#library-list', 'click', async event => {
   }
 });
 on('#editor-form', 'submit', saveKeyword);
+on('#edit-dimension', 'change', () => { $('#edit-temperature-field').hidden = $('#edit-dimension').value !== 'color'; });
 on('#conflict-search', 'input', renderConflicts);
 on('#conflict-options', 'change', event => { const input = event.target; if (input.checked) state.conflictSelection.add(input.value); else state.conflictSelection.delete(input.value); $('#conflict-count').textContent = `${state.conflictSelection.size} 项`; });
 on('#refresh-records', 'click', async () => { await refreshRecords(); toast('记录已刷新'); });
@@ -401,8 +431,8 @@ async function registerBrowserTools() {
   window.addEventListener('pagehide', () => lifecycle.abort(), { once: true });
   const idMap = { type: 'object', additionalProperties: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 5, uniqueItems: true }] } };
   const definitions = [
-    { name: 'read_design_catalog', description: '读取形意词库的八维术语及显式互斥关系。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true }, execute: () => api('/api/catalog') },
-    { name: 'draw_design_inspiration', description: '每维度抽取 1–5 条设计灵感，默认随机 2–3 条，保存到本地历史并更新当前网页结果。锁定维度会保留整组。', inputSchema: { type: 'object', properties: { libraryId: { type: 'string' }, dimensions: { type: 'array', items: { type: 'string', enum: state.catalog.dimensions.map(d => d.id) }, minItems: 1, maxItems: 8, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'] }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5] }, locked: idMap, current: idMap }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true }, execute: input => performDraw(input, { tool: true }) },
+    { name: 'read_design_catalog', description: '读取八个常规维度、独立特色池、色温分类及显式互斥关系。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true }, execute: () => api('/api/catalog') },
+    { name: 'draw_design_inspiration', description: '默认抽取八维，每维度 1–5 条或随机 2–3 条；显式添加 feature 从独立池取 featureCount 条。colorTemperature 严格筛选色彩，成功保存到历史并更新网页。锁定整组保留。', inputSchema: { type: 'object', properties: { libraryId: { type: 'string' }, dimensions: { type: 'array', items: { type: 'string', enum: state.catalog.dimensions.map(d => d.id) }, minItems: 1, maxItems: 9, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'] }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5] }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random', 'cool', 'warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true }, execute: input => performDraw(input, { tool: true }) },
   ];
   for (const definition of definitions) { try { await document.modelContext.registerTool(definition, { signal: lifecycle.signal }); } catch (error) { console.warn('浏览器工具注册不可用；HTTP 接口不受影响。', error); } }
 }
@@ -410,12 +440,17 @@ async function registerBrowserTools() {
 async function init() {
   try {
     state.catalog = await api('/api/catalog');
-    if (state.catalog.apiVersion !== 3) throw Error('服务版本需要更新。请关闭旧服务窗口，重新双击桌面的「启动灵感采样.bat」，再刷新页面。');
-    state.selected = state.catalog.dimensions.map(d => d.id);
+    if (state.catalog.apiVersion !== 4) throw Error('服务版本需要更新。请关闭旧服务窗口，重新双击桌面的「启动灵感采样.bat」，再刷新页面。');
+    state.selected = regularDimensions().map(d => d.id);
     try {
       state.libraryId = localStorage.getItem('formlex.libraryId') ?? 'all';
       const savedCount = localStorage.getItem('formlex.countPerDimension');
       state.countPerDimension = ['1','2','3','4','5'].includes(savedCount) ? Number(savedCount) : 'random';
+      if (localStorage.getItem('formlex.featureEnabled') === 'true') state.selected.push('feature');
+      const featureCount = localStorage.getItem('formlex.featureCount');
+      state.featureCount = ['1','2','3','4','5'].includes(featureCount) ? Number(featureCount) : 1;
+      const colorTemperature = localStorage.getItem('formlex.colorTemperature');
+      state.colorTemperature = ['cool','warm'].includes(colorTemperature) ? colorTemperature : 'random';
     } catch { /* Local storage is optional. */ }
     await refreshCatalog(); await refreshRecords();
     applyLibrary(state.libraryId);

@@ -64,7 +64,13 @@ test('真实 stdio MCP：查询、自选范围、抽取、锁定、历史一致�
     const tools = (await send('tools/list')).result.tools;
     assert.equal(tools.length, 3); assert.equal(tools.find(t => t.name === 'draw_design_inspiration').annotations.readOnlyHint, false);
     const libraries = await call('list_design_libraries');
-    assert.equal(libraries.structuredContent.libraries[0].count, 1200);
+    assert.equal(libraries.structuredContent.libraries[0].count, 1274);
+    assert.equal(libraries.structuredContent.featurePool.count, 150);
+    assert.equal(libraries.structuredContent.featurePool.source, 'global');
+    for (const library of libraries.structuredContent.libraries.filter(l => !['all','foundation'].includes(l.id))) {
+      assert.ok(library.temperatureCounts.cool >= 5); assert.ok(library.temperatureCounts.warm >= 5);
+      assert.ok(!Object.hasOwn(library.counts, 'feature'));
+    }
     assert.equal(libraries.structuredContent.libraries.find(l => l.id === 'digital').counts.style, 10);
     const page = await call('search_design_keywords', { libraryId: 'classical', dimension: 'style', limit: 2 });
     assert.equal(page.structuredContent.total, 10); assert.equal(page.structuredContent.nextOffset, 2);
@@ -86,8 +92,32 @@ test('真实 stdio MCP：查询、自选范围、抽取、锁定、历史一致�
     const fiveStyle = five.structuredContent.items.filter(k => k.dimension === 'style');
     const one = await call('draw_design_inspiration', { libraryId: 'classical', dimensions: ['style','color'], mode: 'free', countPerDimension: 1, locked: { style: fiveStyle.map(k => k.id) } });
     assert.equal(one.structuredContent.items.length, 6); assert.deepEqual(one.structuredContent.items.filter(k => k.dimension === 'style'), fiveStyle);
+    const featureSearch = await call('search_design_keywords', {libraryId:selected.id,dimension:'feature',query:'鼠标',limit:100});
+    assert.equal(featureSearch.isError,false);assert.equal(featureSearch.structuredContent.source,'global');assert.equal(featureSearch.structuredContent.library,null);
+    assert.ok(featureSearch.structuredContent.keywords.some(k=>k.id==='feature-01'));
+    for (const temperature of ['cool','warm','neutral','mixed','unspecified']) {
+      const found = await call('search_design_keywords',{temperature,limit:100});
+      assert.ok(found.structuredContent.keywords.every(k=>k.dimension==='color' && k.temperature===temperature));
+    }
+    const cold = await call('search_design_keywords',{libraryId:'digital',dimension:'color',temperature:'cool'});
+    assert.ok(cold.structuredContent.total>=5);
+    const defaultDraw=await call('draw_design_inspiration',{featureCount:5});
+    assert.ok(defaultDraw.structuredContent.items.every(k=>k.dimension!=='feature'));
+    for (const featureCount of [1,2,3,4,5]) {
+      const f = await call('draw_design_inspiration',{libraryId:selected.id,dimensions:['feature'],countPerDimension:5,featureCount});
+      assert.equal(f.isError,false);assert.equal(f.structuredContent.items.length,featureCount);assert.equal(f.structuredContent.featureSource,'global');
+    }
+    const signature=await call('draw_design_inspiration',{libraryId:'digital',dimensions:['color','feature'],featureCount:3,colorTemperature:'cool',mode:'free',countPerDimension:5});
+    assert.equal(signature.isError,false);assert.equal(signature.structuredContent.items.length,8);
+    assert.equal(signature.structuredContent.colorTemperature,'cool');
+    assert.deepEqual((await http('/api/history'))[0],signature.structuredContent);
+    assert.ok(signature.structuredContent.items.filter(k=>k.dimension==='color').every(k=>k.temperature==='cool'));
+    const featureLock=signature.structuredContent.items.filter(k=>k.dimension==='feature');
+    const switched=await call('draw_design_inspiration',{libraryId:'classical',dimensions:['color','feature'],featureCount:1,colorTemperature:'warm',countPerDimension:5,locked:{feature:featureLock.map(k=>k.id)}});
+    assert.deepEqual(switched.structuredContent.items.filter(k=>k.dimension==='feature'),featureLock);
     const beforeErrors = (await http('/api/history')).length;
-    for (const invalidArgs of [{ ...args, locked: { style: ['style-01'] } }, { libraryId: 'missing' }, { countPerDimension: 9 }, { unsupported: true }]) assert.equal((await call('draw_design_inspiration', invalidArgs)).isError, true);
+    for (const invalidArgs of [{ ...args, locked: { style: ['style-01'] } }, { libraryId: 'missing' }, { countPerDimension: 9 }, {featureCount:6}, {colorTemperature:'neutral'}, { unsupported: true }, {dimensions:['color','feature'],colorTemperature:'warm',locked:{color:[cold.structuredContent.keywords[0].id]}}]) assert.equal((await call('draw_design_inspiration', invalidArgs)).isError, true);
+    for(const search of [{temperature:'random'},{dimension:'feature',temperature:'cool'}])assert.equal((await call('search_design_keywords',search)).isError,true);
     assert.equal((await call('search_design_keywords', { limit: 101 })).isError, true);
     fail = true; const failed = await call('draw_design_inspiration', args); fail = false;
     assert.equal(failed.isError, true); assert.equal(failed.structuredContent.error.code, 'SAVE_FAILED');

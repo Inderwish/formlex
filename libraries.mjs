@@ -1,3 +1,5 @@
+import membership from './seed-membership.json' with { type: 'json' };
+
 export const themes = [
   { id: 'classical', name: '古典与装饰', description: '从建筑秩序、历史装饰与珠宝工艺提取华丽而有章法的构成。' },
   { id: 'eastern', name: '东方与书写', description: '以笔墨、书卷、园林与东亚工艺组织留白、节奏和触感。' },
@@ -12,14 +14,13 @@ export const themes = [
 ];
 
 export function listLibraries(state) {
-  const present = new Set(state.keywords.map(k => k.id));
+  const present = new Set(state.keywords.filter(k => k.dimension !== 'feature').map(k => k.id));
   const builtIn = (id, name, description, matches) => ({ id, name, description, builtIn: true,
-    keywordIds: state.keywords.filter(matches).map(k => k.id) });
-  const numbered = k => /^(style|color|layout|type|shape|material|motion|interaction)-\d+$/.test(k.id) ? Number(k.id.split('-')[1]) : 0;
+    keywordIds: state.keywords.filter(k => k.dimension !== 'feature' && matches(k)).map(k => k.id) });
   return [
-    builtIn('all', '全部词库', '包含所有内置术语和你添加的词条。', () => true),
-    builtIn('foundation', '基础与混合', '涵盖多种设计方向的通用词汇，适合跨风格探索。', k => numbered(k) > 0 && numbered(k) <= 50),
-    ...themes.map((theme, index) => builtIn(theme.id, theme.name, theme.description, k => numbered(k) > 50 + index * 10 && numbered(k) <= 60 + index * 10)),
+    builtIn('all', '全部常规词库', '包含前八维全部词条；特色使用独立全局词池。', () => true),
+    builtIn('foundation', '基础与混合', '涵盖多种设计方向的通用词汇，适合跨风格探索。', k => membership.foundation.includes(k.id)),
+    ...themes.map(theme => builtIn(theme.id, theme.name, theme.description, k => membership[theme.id].includes(k.id))),
     ...(state.libraries ?? []).map(library => ({ ...library, builtIn: false, keywordIds: library.keywordIds.filter(id => present.has(id)) })),
   ];
 }

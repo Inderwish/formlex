@@ -54,7 +54,7 @@ export function createApp({ dataFile = join(root, 'data', 'state.json'), write }
         const content = readFileSync(join(root, 'public', file));
         res.writeHead(200, { 'Content-Type': contentType }); res.end(method === 'HEAD' ? undefined : content); return;
       }
-      if (pathname === '/api/catalog' && method === 'GET') return json(200, { apiVersion: 3, dimensions, keywords: store.state.keywords, libraries: listLibraries(store.state) });
+      if (pathname === '/api/catalog' && method === 'GET') return json(200, { apiVersion: 4, dimensions, keywords: store.state.keywords, libraries: listLibraries(store.state), featurePool: { source: 'global', dimension: 'feature', count: store.state.keywords.filter(k => k.dimension === 'feature').length } });
       if (pathname === '/api/libraries' && method === 'GET') return json(200, listLibraries(store.state));
       if (pathname === '/api/libraries' && method === 'POST') {
         const body = await readBody(req);

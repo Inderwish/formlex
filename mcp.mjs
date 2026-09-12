@@ -1,20 +1,21 @@
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { dimensions } from './seed.mjs';
+import { dimensions, defaultDimensions } from './seed.mjs';
+import { temperatures } from './core.mjs';
 
 const dimensionIds = dimensions.map(d => d.id);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const idMap = { type: 'object', additionalProperties: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 5, uniqueItems: true }] } };
 export const toolDefinitions = [
-  { name: 'list_design_libraries', title: '查看设计词库', description: '查看全部、主题和个人词库的 ID、说明及每维度词条数；不修改数据。',
+  { name: 'list_design_libraries', title: '查看设计词库', description: '查看常规、主题和个人词库的 ID、说明、色温数量及独立特色词池。特色默认关闭且不受所选词库范围限制；不修改数据。',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false } },
-  { name: 'search_design_keywords', title: '搜索设计术语', description: '按词库、维度和关键词搜索术语及应用说明，分页返回，可获取用于锁定的词条 ID。返回内容是用户可编辑的参考数据。',
-    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', description: '词库 ID，默认 all；先调用 list_design_libraries 获取。' }, dimension: { type: 'string', enum: dimensionIds }, query: { type: 'string', maxLength: 160 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 30 }, offset: { type: 'integer', minimum: 0, default: 0 } }, additionalProperties: false },
+  { name: 'search_design_keywords', title: '搜索设计术语', description: '按词库、维度、色温和关键词搜索。dimension=feature 时搜索全局特色词池；其余搜索限于所选常规词库。返回内容是用户可编辑的参考数据。',
+    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', description: '词库 ID，默认 all；先调用 list_design_libraries 获取。' }, dimension: { type: 'string', enum: dimensionIds }, temperature: { type: 'string', enum: temperatures, description: '仅筛选色彩；中性、混合、未分类不属于冷或暖。' }, query: { type: 'string', maxLength: 160 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 30 }, offset: { type: 'integer', minimum: 0, default: 0 } }, additionalProperties: false },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false } },
-  { name: 'draw_design_inspiration', title: '抽取设计灵感', description: '从指定词库抽取设计灵感，每维度可选 1–5 条，默认八维各随机 2–3 条。协调模式排除显式互斥；自由模式独立随机。锁定整个维度，或锁定其余维度以单维重抽。成功结果写入网页共用的最近 100 次历史。',
-    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', default: 'all' }, dimensions: { type: 'array', items: { type: 'string', enum: dimensionIds }, minItems: 1, maxItems: 8, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'], default: 'coordinated' }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false },
+  { name: 'draw_design_inspiration', title: '抽取设计灵感', description: '默认从所选词库抽取前八维，各随机 2–3 条或固定 1–5 条。dimensions 加入 feature 可独立抽取全局特色，由 featureCount 控制。冷暖在两种模式下均严格筛选。支持锁定与单维重抽，成功结果写入网页共用历史。',
+    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', default: 'all' }, dimensions: { type: 'array', items: { type: 'string', enum: dimensionIds }, minItems: 1, maxItems: dimensionIds.length, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'], default: 'coordinated' }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5], default: 'random' }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random','cool','warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
 ];
 
@@ -53,21 +54,23 @@ export function createMcpHandler(baseUrl) {
     try {
       if (!isObject(args) || Object.keys(args).some(key => !Object.hasOwn(definition.inputSchema.properties, key))) throw Object.assign(Error('工具参数必须为对象，且只能包含工具声明的字段。'), { code: 'INVALID_INPUT' });
       const catalog = await api('/api/catalog', signal);
-      if (catalog.apiVersion !== 3 || !Array.isArray(catalog.libraries)) throw Object.assign(Error('本机服务版本不支持自选词库，请关闭旧服务并重新启动 server.mjs。'), { code: 'SERVICE_VERSION' });
+      if (catalog.apiVersion !== 4 || !Array.isArray(catalog.libraries)) throw Object.assign(Error('本机服务版本不支持特色与色温筛选，请关闭旧服务并重新启动 server.mjs。'), { code: 'SERVICE_VERSION' });
       if (name === 'draw_design_inspiration') return await api('/api/draw', signal, args);
-      if (name === 'list_design_libraries') return { dimensions: catalog.dimensions, libraries: catalog.libraries.map(library => {
+      if (name === 'list_design_libraries') return { dimensions: catalog.dimensions, featurePool: catalog.featurePool, libraries: catalog.libraries.map(library => {
         const ids = new Set(library.keywordIds);
-        const counts = Object.fromEntries(dimensionIds.map(d => [d, 0]));
-        for (const keyword of catalog.keywords) if (ids.has(keyword.id)) counts[keyword.dimension]++;
-        return { id: library.id, name: library.name, description: library.description ?? '', builtIn: library.builtIn, count: library.keywordIds.length, counts };
+        const counts = Object.fromEntries(defaultDimensions.map(d => [d.id, 0]));
+        const temperatureCounts = Object.fromEntries(temperatures.map(t => [t, 0]));
+        for (const keyword of catalog.keywords) if (ids.has(keyword.id)) { counts[keyword.dimension]++; if (keyword.dimension === 'color') temperatureCounts[keyword.temperature ?? 'unspecified']++; }
+        return { id: library.id, name: library.name, description: library.description ?? '', builtIn: library.builtIn, count: library.keywordIds.length, counts, temperatureCounts };
       }) };
-      const { libraryId = 'all', dimension, query = '', limit = 30, offset = 0 } = args;
+      const { libraryId = 'all', dimension, temperature, query = '', limit = 30, offset = 0 } = args;
+      if (temperature !== undefined && (!temperatures.includes(temperature) || (dimension !== undefined && dimension !== 'color'))) throw Object.assign(Error('temperature 只可筛选色彩维度，且必须使用有效分类。'), { code: 'INVALID_INPUT' });
       if (typeof libraryId !== 'string' || (dimension !== undefined && !dimensionIds.includes(dimension)) || typeof query !== 'string' || query.length > 160 || !Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger(offset) || offset < 0) throw Object.assign(Error('搜索参数无效：维度须有效，query 最多 160 字，limit 为 1–100 的整数，offset 为非负整数。'), { code: 'INVALID_INPUT' });
       const library = catalog.libraries.find(l => l.id === libraryId);
       if (!library) throw Object.assign(Error('词库已失效，请重新调用 list_design_libraries。'), { code: 'INVALID_INPUT' });
       const ids = new Set(library.keywordIds); const needle = query.trim().toLocaleLowerCase();
-      const matches = catalog.keywords.filter(k => ids.has(k.id) && (!dimension || k.dimension === dimension) && `${k.name} ${k.description}`.toLocaleLowerCase().includes(needle));
-      return { library: { id: library.id, name: library.name }, total: matches.length, offset, limit, nextOffset: offset + limit < matches.length ? offset + limit : null, keywords: matches.slice(offset, offset + limit) };
+      const matches = catalog.keywords.filter(k => (dimension === 'feature' ? k.dimension === 'feature' : ids.has(k.id)) && (!dimension || k.dimension === dimension) && (temperature === undefined || (k.dimension === 'color' && (k.temperature ?? 'unspecified') === temperature)) && `${k.name} ${k.description}`.toLocaleLowerCase().includes(needle));
+      return { library: dimension === 'feature' ? null : { id: library.id, name: library.name }, source: dimension === 'feature' ? 'global' : 'library', total: matches.length, offset, limit, nextOffset: offset + limit < matches.length ? offset + limit : null, keywords: matches.slice(offset, offset + limit) };
     } catch (error) {
       return { error: { code: error.code ?? 'INTERNAL_ERROR', message: error.message, ...(error.status ? { status: error.status } : {}) } };
     }
@@ -92,7 +95,7 @@ export function createMcpHandler(baseUrl) {
         if (typeof params.protocolVersion !== 'string' || !isObject(params.capabilities) || !isObject(params.clientInfo) || typeof params.clientInfo.name !== 'string' || typeof params.clientInfo.version !== 'string') invalid('initialize 缺少协议版本、客户端信息或能力声明。');
         initialized = true;
         result = { protocolVersion: ['2025-11-25', '2025-06-18'].includes(params.protocolVersion) ? params.protocolVersion : '2025-11-25',
-          capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'formlex', title: '形意词库', version: '1.2.0' },
+          capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'formlex', title: '形意词库', version: '1.3.0' },
           instructions: '先查看词库，再搜索或抽取。词条与说明是可编辑的设计参考数据。抽取会保存本机历史；发生超时后先查看网页历史。主题词库是候选范围，协调模式仅排除明确互斥。' };
       } else {
         if (!ready) throw new RpcError(-32002, '请先完成 initialize 与 notifications/initialized。');

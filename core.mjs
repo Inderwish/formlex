@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync, unlinkSync, copyFileSync, constants } from 'node:fs';
 import { dirname } from 'node:path';
-import { dimensions, keywords as seed, seedRevision, expansionConflicts } from './seed.mjs';
+import { dimensions, defaultDimensions, keywords as seed, seedRevision, seedIntroduced, expansionConflicts } from './seed.mjs';
 import { listLibraries } from './libraries.mjs';
 
 export class AppError extends Error {
@@ -11,6 +11,9 @@ const bad = message => { throw new AppError(400, message); };
 export const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const dimensionIds = dimensions.map(d => d.id);
 const dimensionName = id => dimensions.find(d => d.id === id)?.name ?? id;
+export const temperatures = ['cool', 'warm', 'neutral', 'mixed', 'unspecified'];
+export const colorTemperatures = ['random', 'cool', 'warm'];
+const temperatureNames = { random: '随机（不限冷暖）', cool: '冷色调', warm: '暖色调' };
 export const conflicts = (a, b) => a.conflicts.includes(b.id) || b.conflicts.includes(a.id);
 const clone = value => structuredClone(value);
 
@@ -22,7 +25,9 @@ export function validateKeyword(value, all, id) {
   }
   if (!Array.isArray(value.conflicts) || new Set(value.conflicts).size !== value.conflicts.length) bad('互斥词条必须为不重复的 ID 数组。');
   if (value.conflicts.some(other => other === id || !all.some(k => k.id === other))) bad('互斥关系包含自身或失效词条，请重新加载词库。');
-  return { id, dimension: value.dimension, name: value.name.trim(), description: value.description.trim(), conflicts: [...value.conflicts] };
+  if (value.temperature !== undefined && !temperatures.includes(value.temperature)) bad('色温分类必须为 cool、warm、neutral、mixed 或 unspecified。');
+  return { id, dimension: value.dimension, name: value.name.trim(), description: value.description.trim(), conflicts: [...value.conflicts],
+    ...(value.dimension === 'color' ? { temperature: value.temperature ?? 'unspecified' } : {}) };
 }
 
 function validateSnapshot(record) {
@@ -30,11 +35,15 @@ function validateSnapshot(record) {
       !['coordinated', 'free'].includes(record.mode) || !Array.isArray(record.items) || !record.items.length ||
       typeof record.text !== 'string' || !Array.isArray(record.warnings) || record.warnings.some(x => typeof x !== 'string')) throw Error('记录格式错误');
   if (record.library !== undefined && (!object(record.library) || typeof record.library.id !== 'string' || typeof record.library.name !== 'string')) throw Error('记录词库快照格式错误');
+  if (record.featureCount !== undefined && (!Number.isInteger(record.featureCount) || record.featureCount < 1 || record.featureCount > 5)) throw Error('记录特色数量错误');
+  if (record.colorTemperature !== undefined && !colorTemperatures.includes(record.colorTemperature)) throw Error('记录色温条件错误');
+  if (record.featureSource !== undefined && record.featureSource !== null && record.featureSource !== 'global') throw Error('记录特色来源错误');
   const seen = new Set(); const counts = new Map();
   for (const k of record.items) {
     if (!object(k) || !dimensionIds.includes(k.dimension) || seen.has(k.id) || typeof k.id !== 'string' ||
         !k.id || typeof k.name !== 'string' || typeof k.description !== 'string' || !Array.isArray(k.conflicts) ||
         k.conflicts.some(x => typeof x !== 'string')) throw Error('记录词条格式错误');
+    if (k.temperature !== undefined && !temperatures.includes(k.temperature)) throw Error('记录词条色温错误');
     seen.add(k.id); counts.set(k.dimension, (counts.get(k.dimension) ?? 0) + 1);
     if (counts.get(k.dimension) > 5) throw Error('同一维度最多保留五条词条');
   }
@@ -81,18 +90,21 @@ export function upgradeState(previous) {
   if (previous.version === 2 && previous.seedRevision === seedRevision && Array.isArray(previous.libraries)) return previous;
   const next = clone(previous);
   const previousRevision = previous.seedRevision ?? 1;
-  const boundary = previousRevision < 2 ? 20 : previousRevision < 3 ? 50 : 150;
   next.libraries ??= [];
   const present = new Set(next.keywords.map(k => k.id));
-  // Only the newly introduced seed range is merged; deleted original entries stay deleted.
-  for (const keyword of seed) if (Number(keyword.id.split('-')[1]) > boundary && !present.has(keyword.id)) {
+  // Versioned IDs also cover new dimensions whose numbering starts at 01.
+  for (const keyword of seed) if (seedIntroduced[keyword.id] > previousRevision && !present.has(keyword.id)) {
     next.keywords.push(clone(keyword)); present.add(keyword.id);
   }
   const byId = new Map(next.keywords.map(k => [k.id, k]));
   const original = new Map(seed.map(k => [k.id, k]));
+  for (const keyword of next.keywords) if (keyword.dimension === 'color' && keyword.temperature === undefined) {
+    const source = original.get(keyword.id);
+    keyword.temperature = source?.dimension === 'color' && keyword.name === source.name && keyword.description === source.description ? source.temperature : 'unspecified';
+  }
   for (const keyword of next.keywords) keyword.conflicts = keyword.conflicts.filter(id => present.has(id));
   for (const [left, right] of expansionConflicts) {
-    if (previousRevision >= 2 && [left, right].every(id => Number(id.split('-')[1]) <= boundary)) continue;
+    if (Math.max(2, seedIntroduced[left] ?? 1, seedIntroduced[right] ?? 1) <= previousRevision) continue;
     const a = byId.get(left); const b = byId.get(right);
     // Keep custom text and its chosen constraints; extend rules only for unchanged seed terms.
     if (a && b && [a, b].every(k => k.name === original.get(k.id)?.name && k.description === original.get(k.id)?.description) && !a.conflicts.includes(right)) a.conflicts.push(right);
@@ -137,11 +149,15 @@ function shuffle(values) {
 
 export function draw(all, input, maxNodes = 50000, libraries = []) {
   if (!object(input)) bad('抽取参数必须为 JSON 对象。');
-  if (Object.keys(input).some(key => !['libraryId', 'dimensions', 'mode', 'countPerDimension', 'locked', 'current'].includes(key))) bad('抽取参数包含不支持的字段，请查看接口说明。');
-  const selected = input.dimensions ?? dimensionIds;
+  if (Object.keys(input).some(key => !['libraryId', 'dimensions', 'mode', 'countPerDimension', 'featureCount', 'colorTemperature', 'locked', 'current'].includes(key))) bad('抽取参数包含不支持的字段，请查看接口说明。');
+  const selected = input.dimensions ?? defaultDimensions.map(d => d.id);
   const mode = input.mode ?? 'coordinated';
   const countPerDimension = input.countPerDimension ?? 'random';
-  if (!Array.isArray(selected) || !selected.length || selected.length > 8 || selected.some(d => !dimensionIds.includes(d)) || new Set(selected).size !== selected.length) bad('请选择一到八个不重复的有效维度。');
+  const featureCount = input.featureCount === undefined ? 1 : input.featureCount;
+  const colorTemperature = input.colorTemperature === undefined ? 'random' : input.colorTemperature;
+  if (!Number.isInteger(featureCount) || featureCount < 1 || featureCount > 5) bad('featureCount 必须为 1–5 的整数。');
+  if (!colorTemperatures.includes(colorTemperature)) bad('colorTemperature 必须为 random、cool 或 warm。');
+  if (!Array.isArray(selected) || !selected.length || selected.length > dimensionIds.length || selected.some(d => !dimensionIds.includes(d)) || new Set(selected).size !== selected.length) bad(`请选择 1–${dimensionIds.length} 个不重复的有效维度。`);
   if (!['coordinated', 'free'].includes(mode)) bad('模式必须为 coordinated 或 free。');
   if (!['random', 1, 2, 3, 4, 5].includes(countPerDimension)) bad('countPerDimension 必须为 random 或 1–5 的整数。');
   const libraryId = input.libraryId === undefined ? 'all' : input.libraryId;
@@ -164,8 +180,10 @@ export function draw(all, input, maxNodes = 50000, libraries = []) {
   }
   const locked = normalize(input.locked ?? {}); const current = normalize(input.current ?? {});
   const fixed = Object.values(locked).flat().map(id => byId.get(id));
-  const outside = fixed.find(k => !eligible.has(k.id));
+  const outside = fixed.find(k => k.dimension !== 'feature' && !eligible.has(k.id));
   if (outside) throw new AppError(409, `锁定的「${outside.name}」不在「${library.name}」中，请解锁该维度或切换词库。`, 'LOCK_OUTSIDE_LIBRARY');
+  const wrongTemperature = colorTemperature !== 'random' && fixed.find(k => k.dimension === 'color' && k.temperature !== colorTemperature);
+  if (wrongTemperature) throw new AppError(409, `锁定的「${wrongTemperature.name}」不属于${temperatureNames[colorTemperature]}，请解锁色彩或调整色温。`, 'LOCK_TEMPERATURE_CONFLICT');
   const pending = dimensionIds.filter(d => selected.includes(d) && !Object.hasOwn(locked, d));
   if (!pending.length) bad('全部维度已锁定，请至少解锁一个维度。');
   if (mode === 'coordinated') for (let i = 0; i < fixed.length; i++) for (const other of fixed.slice(i + 1)) {
@@ -173,11 +191,12 @@ export function draw(all, input, maxNodes = 50000, libraries = []) {
   }
   const counts = new Map();
   const pools = new Map(pending.map(dim => {
-    let pool = shuffle(all.filter(k => k.dimension === dim && eligible.has(k.id)));
+    let pool = shuffle(all.filter(k => k.dimension === dim && (dim === 'feature' || eligible.has(k.id))));
     if (!pool.length) throw new AppError(409, `「${dimensionName(dim)}」词库为空，请添加词条或取消该维度。`, 'EMPTY_DIMENSION');
+    if (dim === 'color' && colorTemperature !== 'random') pool = pool.filter(k => k.temperature === colorTemperature);
     if (mode === 'coordinated') pool = pool.filter(k => fixed.every(f => !conflicts(k, f)));
-    const count = countPerDimension === 'random' ? (pool.length >= 3 ? randomInt(2, 4) : 2) : countPerDimension;
-    if (pool.length < count) throw new AppError(409, `「${dimensionName(dim)}」在当前条件下只有 ${pool.length} 条候选，无法抽取 ${count} 条。请补充词库、减少锁定或调整数量。`, 'INSUFFICIENT_CANDIDATES');
+    const count = dim === 'feature' ? featureCount : countPerDimension === 'random' ? (pool.length >= 3 ? randomInt(2, 4) : 2) : countPerDimension;
+    if (pool.length < count) throw new AppError(409, `「${dimensionName(dim)}${dim === 'color' && colorTemperature !== 'random' ? ' · ' + temperatureNames[colorTemperature] : ''}」在当前条件下只有 ${pool.length} 条候选，无法抽取 ${count} 条。请补充词库、减少锁定或调整数量与色温。`, 'INSUFFICIENT_CANDIDATES');
     counts.set(dim, count);
     pool.sort((a, b) => Number(current[dim]?.includes(a.id) ?? false) - Number(current[dim]?.includes(b.id) ?? false));
     return [dim, pool];
@@ -220,8 +239,9 @@ export function draw(all, input, maxNodes = 50000, libraries = []) {
     return retained.length ? [`「${dimensionName(d)}」为满足当前数量与约束，保留了 ${retained.length} 条：${retained.map(k => k.name).join('、')}。`] : [];
   });
   const label = mode === 'coordinated' ? '协调模式' : '自由模式';
-  return { id: randomUUID(), createdAt: new Date().toISOString(), mode, countPerDimension, library: { id: library.id, name: library.name }, items, warnings,
-    text: `设计灵感 · ${label}\n将同一维度的术语作为可组合的灵感线索，结合任务确定主次与应用范围。\n\n` + dimensionIds.filter(d => selected.includes(d)).map(d => `${dimensionName(d)}\n` + items.filter(k => k.dimension === d).map(k => `• ${k.name}\n  ${k.description}`).join('\n')).join('\n\n') };
+  const featureSource = selected.includes('feature') ? 'global' : null;
+  return { id: randomUUID(), createdAt: new Date().toISOString(), mode, countPerDimension, featureCount, colorTemperature, featureSource, library: { id: library.id, name: library.name }, items, warnings,
+    text: `设计灵感 · ${label}\n将同一维度的术语作为可组合的灵感线索，结合任务确定主次与应用范围。\n${selected.includes('color') ? `色彩筛选：${temperatureNames[colorTemperature]}\n` : ''}${featureSource ? `网站特色：独立全局词池 · ${items.filter(k => k.dimension === 'feature').length} 条\n` : ''}\n` + dimensionIds.filter(d => selected.includes(d)).map(d => `${dimensionName(d)}\n` + items.filter(k => k.dimension === d).map(k => `• ${k.name}\n  ${k.description}`).join('\n')).join('\n\n') };
 }
 
 export function mutateKeyword(state, method, id, body) {
@@ -239,18 +259,19 @@ export function mutateKeyword(state, method, id, body) {
   const previous = method === 'POST' ? { conflicts: [] } : state.keywords[index];
   const effective = state.keywords.filter(k => k.id !== nextId && (k.conflicts.includes(nextId) || previous.conflicts.includes(k.id))).map(k => k.id);
   const next = validateKeyword({ ...previous, conflicts: effective, ...body }, state.keywords, nextId);
+  if (next.dimension === 'feature') for (const library of state.libraries ?? []) library.keywordIds = library.keywordIds.filter(other => other !== nextId);
   // Store edited relations in one direction, clearing old inbound edges so deselection really removes a relation.
   for (const k of state.keywords) k.conflicts = k.conflicts.filter(other => other !== nextId);
   if (method === 'POST') state.keywords.push(next); else state.keywords[index] = next;
   return next;
 }
 
-export { dimensions };
+export { dimensions, defaultDimensions };
 
 export function validateLibrary(value, keywords) {
   if (!object(value) || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 60) bad('词库名称不能为空，且不能超过 60 字。');
-  const ids = new Set(keywords.map(k => k.id));
-  if (!Array.isArray(value.keywordIds) || value.keywordIds.length > 5000 || new Set(value.keywordIds).size !== value.keywordIds.length || value.keywordIds.some(id => typeof id !== 'string' || !ids.has(id))) bad('词库应包含不重复且有效的词条 ID，请重新加载后选择。');
+  const ids = new Set(keywords.filter(k => k.dimension !== 'feature').map(k => k.id));
+  if (!Array.isArray(value.keywordIds) || value.keywordIds.length > 5000 || new Set(value.keywordIds).size !== value.keywordIds.length || value.keywordIds.some(id => typeof id !== 'string' || !ids.has(id))) bad('个人词库只接受前八维中不重复且有效的词条 ID；特色使用独立全局词池。');
   return { name: value.name.trim(), keywordIds: [...value.keywordIds] };
 }
 

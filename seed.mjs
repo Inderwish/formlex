@@ -1,4 +1,6 @@
 import { extraEntries } from './seed-extra.mjs';
+import { temperatureById, paletteAdditions } from './seed-palette.mjs';
+import { featureKeywords } from './seed-features.mjs';
 
 export const dimensions = [
   { id: 'style', name: '风格', en: 'STYLE' },
@@ -9,7 +11,9 @@ export const dimensions = [
   { id: 'material', name: '材质', en: 'MATERIAL' },
   { id: 'motion', name: '动效', en: 'MOTION' },
   { id: 'interaction', name: '交互', en: 'INTERACTION' },
+  { id: 'feature', name: '特色', en: 'SIGNATURE', optional: true, defaultEnabled: false, scope: 'global' },
 ];
+export const defaultDimensions = dimensions.filter(d => !d.optional);
 
 const entries = {
   style: [
@@ -448,13 +452,20 @@ const additions = {
     ['批注锚点', '把设计意见固定到具体对象或区域，缩放和布局变化后仍能定位原处。'],
   ],
 };
-for (const d of dimensions) entries[d.id].push(...additions[d.id]);
-for (const d of dimensions) entries[d.id].push(...(extraEntries[d.id] ?? []));
-export const seedRevision = 3;
+for (const d of defaultDimensions) entries[d.id].push(...additions[d.id]);
+for (const d of defaultDimensions) entries[d.id].push(...(extraEntries[d.id] ?? []));
+export const seedRevision = 4;
 
-export const keywords = dimensions.flatMap(d => entries[d.id].map(([name, description], i) => ({
+const previousKeywords = defaultDimensions.flatMap(d => entries[d.id].map(([name, description], i) => ({
   id: `${d.id}-${String(i + 1).padStart(2, '0')}`, dimension: d.id, name, description, conflicts: [],
 })));
+const newKeywords = [...paletteAdditions.map(({ theme, ...keyword }) => ({ ...keyword, dimension: 'color', conflicts: [] })), ...featureKeywords];
+export const seedIntroduced = Object.fromEntries([
+  ...previousKeywords.map(k => { const number = Number(k.id.split('-')[1]); return [k.id, number <= 20 ? 1 : number <= 50 ? 2 : 3]; }),
+  ...newKeywords.map(k => [k.id, 4]),
+]);
+export const keywords = [...previousKeywords, ...newKeywords];
+for (const k of keywords) if (k.dimension === 'color') k.temperature = k.temperature ?? temperatureById[k.id];
 
 // Explicit contradictions only. A missing edge is not a claim of aesthetic compatibility.
 const conflictGroups = [

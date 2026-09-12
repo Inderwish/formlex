@@ -34,11 +34,15 @@ node server.mjs
 
 | 工具 | 参数与用途 |
 | --- | --- |
-| `list_design_libraries` | 无参数；返回内置与个人词库的 ID、名称、说明、总数及每维度候选数量。 |
-| `search_design_keywords` | 按 `libraryId`、`dimension`、`query` 搜索；`limit` 默认 30，范围 1–100，`offset` 默认 0。返回术语、说明、总数及 `nextOffset`。 |
-| `draw_design_inspiration` | 接受 `libraryId`、`dimensions`、`mode`、`countPerDimension`、`locked`、`current`，成功后保存历史。 |
+| `list_design_libraries` | 无参数；返回内置与个人词库的 ID、名称、说明、常规总数、每维度候选数量、色温分类数量 `temperatureCounts` 及独立的 `featurePool`。 |
+| `search_design_keywords` | 按 `libraryId`、`dimension`、`temperature`、`query` 搜索；`limit` 默认 30，范围 1–100，`offset` 默认 0。返回术语、说明、总数及 `nextOffset`。 |
+| `draw_design_inspiration` | 接受 `libraryId`、`dimensions`、`mode`、`countPerDimension`、`featureCount`、`colorTemperature`、`locked`、`current`，成功后保存历史。 |
 
-抽取参数与 [HTTP API](api.md) 一致，默认使用全部词库、八个维度、协调模式，每维度随机 2–3 条。`countPerDimension` 可设为整数 1–5，锁定维度仍保留原数量；`locked` 与 `current` 的每维度 ID 数组最多 5 项。主题词库及个人词库都是候选范围；协调模式只排除显式互斥。
+抽取参数与 [HTTP API](api.md) 一致，默认使用全部常规词库、原八个维度、协调模式，每维度随机 2–3 条。`countPerDimension` 可设为整数 1–5，锁定维度仍保留原数量；`locked` 与 `current` 的每维度 ID 数组最多 5 项。主题词库及个人词库控制前八维的候选范围；协调模式只排除显式互斥。
+
+显式在 `dimensions` 加入 `feature` 可开启特色，也可以只传 `["feature"]`。它始终从独立全局词池抽取，数量由 `featureCount` 控制（整数 1–5，默认 1），不受 `countPerDimension` 或所选词库范围影响。`colorTemperature` 支持 `random`、`cool`、`warm`，默认随机；自由与协调模式都严格遵守冷暖标签，候选不足或锁定色彩不符时保留条件并返回原因。
+
+搜索时，`dimension: "feature"` 表示全局特色搜索，返回 `source: "global"` 和 `library: null`；省略 dimension 的搜索仍限于常规词库。`temperature` 接受 `cool`、`warm`、`neutral`、`mixed`、`unspecified`，只用于色彩，可与 `dimension: "color"` 一起使用或单独指定；与其他维度一起传入会报错。取消搜索色温限制请省略该字段，不传 `random`。
 
 个人词库可能只包含部分维度。先查看各维度数量，再显式传入要抽取的维度；每个未锁定维度需要足够的候选词条。锁定词条不在所选词库、词条失效或保存失败时会说明原因，不会静默更换条件。
 
@@ -57,9 +61,11 @@ node server.mjs
 ```json
 {
   "libraryId": "digital",
-  "dimensions": ["style", "color", "layout", "type", "material"],
+  "dimensions": ["style", "color", "layout", "type", "material", "feature"],
   "mode": "free",
-  "countPerDimension": 2
+  "countPerDimension": 2,
+  "featureCount": 1,
+  "colorTemperature": "cool"
 }
 ```
 
@@ -79,13 +85,29 @@ node server.mjs
 }
 ```
 
+全局查找鼠标光效，或只搜索主题中的暖色配色：
+
+```json
+{"libraryId":"digital","dimension":"feature","query":"鼠标","limit":10}
+```
+
+```json
+{"libraryId":"classical","dimension":"color","temperature":"warm"}
+```
+
+只抽三个网站特色：
+
+```json
+{"dimensions":["feature"],"featureCount":3}
+```
+
 实际使用时，从搜索或前一次抽取中获取 ID。工具不会读取网页当前选择，每次调用明确传参；网页中的“刷新记录”可以读取 MCP 产生的结果。
 
 ## 返回与错误
 
-工具结果同时提供 `structuredContent` 对象和包含同一对象 JSON 的 `content` 文本块。抽取结果中的 `text` 是可直接给 agent 使用的中文设计说明，`items` 是词条数组，`library` 保留抽取时的词库名称。
+工具结果同时提供 `structuredContent` 对象和包含同一对象 JSON 的 `content` 文本块。抽取结果中的 `text` 是可直接给 agent 使用的中文设计说明，`items` 是词条数组，`library` 保留抽取时的常规词库名称，`colorTemperature` 和 `featureCount` 记录设置；包含特色时 `featureSource` 为 `global`，否则为 `null`。锁定的特色组可跨主题保留，实际词条数量以 `items` 为准。
 
-参数、约束、连接和保存错误通过 `isError: true` 返回，包含 `error.code` 和中文 `error.message`。服务未启动时会提示先启动 `server.mjs`。发生超时或取消后，抽取可能已在服务端保存，应先查看网页历史再决定是否重试。
+参数、约束、连接和保存错误通过 `isError: true` 返回，包含 `error.code` 和中文 `error.message`。服务未启动时会提示先启动 `server.mjs`；服务版本不符返回 `SERVICE_VERSION`，请关闭旧服务后重新启动。当前要求 HTTP API 版本 4。发生超时或取消后，抽取可能已在服务端保存，应先查看网页历史再决定是否重试。
 
 该入口使用 UTF-8、按行分隔的 JSON-RPC stdio 消息，支持初始化、工具发现、调用与取消通知；支持协议版本 `2025-11-25` 和 `2025-06-18`。协议依据：[MCP 传输规范](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)、[初始化生命周期](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)、[工具规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)。
 
