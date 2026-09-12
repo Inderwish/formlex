@@ -4,7 +4,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { execFile } from 'node:child_process';
-import { AppError, object, openStore, draw, dimensions, mutateKeyword } from './core.mjs';
+import { AppError, object, openStore, draw, dimensions, mutateKeyword, mutateLibrary } from './core.mjs';
+import { listLibraries } from './libraries.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const assets = new Map([
@@ -53,13 +54,23 @@ export function createApp({ dataFile = join(root, 'data', 'state.json'), write }
         const content = readFileSync(join(root, 'public', file));
         res.writeHead(200, { 'Content-Type': contentType }); res.end(method === 'HEAD' ? undefined : content); return;
       }
-      if (pathname === '/api/catalog' && method === 'GET') return json(200, { apiVersion: 2, dimensions, keywords: store.state.keywords });
+      if (pathname === '/api/catalog' && method === 'GET') return json(200, { apiVersion: 3, dimensions, keywords: store.state.keywords, libraries: listLibraries(store.state) });
+      if (pathname === '/api/libraries' && method === 'GET') return json(200, listLibraries(store.state));
+      if (pathname === '/api/libraries' && method === 'POST') {
+        const body = await readBody(req);
+        return json(201, store.transact(state => mutateLibrary(state, method, undefined, body)));
+      }
+      const libraryPath = /^\/api\/libraries\/([a-zA-Z0-9-]+)$/.exec(pathname);
+      if (libraryPath && ['PATCH', 'DELETE'].includes(method)) {
+        const body = method === 'PATCH' ? await readBody(req) : undefined;
+        return json(200, store.transact(state => mutateLibrary(state, method, libraryPath[1], body)));
+      }
       if (pathname === '/api/history' && method === 'GET') return json(200, store.state.history);
       if (pathname === '/api/favorites' && method === 'GET') return json(200, store.state.favorites);
       if (pathname === '/api/draw' && method === 'POST') {
         const body = await readBody(req);
         const result = store.transact(state => {
-          const record = draw(state.keywords, body);
+          const record = draw(state.keywords, body, 50000, state.libraries);
           state.history.unshift(record); state.history = state.history.slice(0, 100);
           return record;
         });

@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync, unlinkSync, copyFileSync, constants } from 'node:fs';
 import { dirname } from 'node:path';
 import { dimensions, keywords as seed, seedRevision, expansionConflicts } from './seed.mjs';
+import { listLibraries } from './libraries.mjs';
 
 export class AppError extends Error {
   constructor(status, message, code = 'INVALID_INPUT') { super(message); this.status = status; this.code = code; }
@@ -28,13 +29,14 @@ function validateSnapshot(record) {
   if (!object(record) || typeof record.id !== 'string' || !record.id || !Number.isFinite(Date.parse(record.createdAt)) ||
       !['coordinated', 'free'].includes(record.mode) || !Array.isArray(record.items) || !record.items.length ||
       typeof record.text !== 'string' || !Array.isArray(record.warnings) || record.warnings.some(x => typeof x !== 'string')) throw Error('记录格式错误');
+  if (record.library !== undefined && (!object(record.library) || typeof record.library.id !== 'string' || typeof record.library.name !== 'string')) throw Error('记录词库快照格式错误');
   const seen = new Set(); const counts = new Map();
   for (const k of record.items) {
     if (!object(k) || !dimensionIds.includes(k.dimension) || seen.has(k.id) || typeof k.id !== 'string' ||
         !k.id || typeof k.name !== 'string' || typeof k.description !== 'string' || !Array.isArray(k.conflicts) ||
         k.conflicts.some(x => typeof x !== 'string')) throw Error('记录词条格式错误');
     seen.add(k.id); counts.set(k.dimension, (counts.get(k.dimension) ?? 0) + 1);
-    if (counts.get(k.dimension) > 3) throw Error('同一维度最多保留三条词条');
+    if (counts.get(k.dimension) > 5) throw Error('同一维度最多保留五条词条');
   }
 }
 
@@ -46,6 +48,14 @@ export function validateState(state) {
     if (!object(k) || typeof k.id !== 'string' || !/^[a-zA-Z0-9-]+$/.test(k.id) || ids.has(k.id)) throw Error('词条 ID 错误');
     ids.add(k.id);
     validateKeyword(k, state.keywords, k.id);
+  }
+  if (state.libraries !== undefined) {
+    if (!Array.isArray(state.libraries) || state.libraries.length > 100) throw Error('个人词库格式错误或超过 100 个');
+    const libraryIds = new Set(listLibraries({ keywords: [] }).map(l => l.id));
+    for (const library of state.libraries) {
+      if (!object(library) || typeof library.id !== 'string' || !/^[a-zA-Z0-9-]+$/.test(library.id) || libraryIds.has(library.id)) throw Error('个人词库 ID 错误');
+      validateLibrary(library, state.keywords); libraryIds.add(library.id);
+    }
   }
   for (const group of [state.history, state.favorites]) {
     const recordIds = new Set();
@@ -68,17 +78,21 @@ export function atomicWrite(file, state) {
 }
 
 export function upgradeState(previous) {
-  if (previous.version === 2 && previous.seedRevision === seedRevision) return previous;
+  if (previous.version === 2 && previous.seedRevision === seedRevision && Array.isArray(previous.libraries)) return previous;
   const next = clone(previous);
+  const previousRevision = previous.seedRevision ?? 1;
+  const boundary = previousRevision < 2 ? 20 : previousRevision < 3 ? 50 : 150;
+  next.libraries ??= [];
   const present = new Set(next.keywords.map(k => k.id));
   // Only the newly introduced seed range is merged; deleted original entries stay deleted.
-  for (const keyword of seed) if (Number(keyword.id.split('-')[1]) >= 21 && !present.has(keyword.id)) {
+  for (const keyword of seed) if (Number(keyword.id.split('-')[1]) > boundary && !present.has(keyword.id)) {
     next.keywords.push(clone(keyword)); present.add(keyword.id);
   }
   const byId = new Map(next.keywords.map(k => [k.id, k]));
   const original = new Map(seed.map(k => [k.id, k]));
   for (const keyword of next.keywords) keyword.conflicts = keyword.conflicts.filter(id => present.has(id));
   for (const [left, right] of expansionConflicts) {
+    if (previousRevision >= 2 && [left, right].every(id => Number(id.split('-')[1]) <= boundary)) continue;
     const a = byId.get(left); const b = byId.get(right);
     // Keep custom text and its chosen constraints; extend rules only for unchanged seed terms.
     if (a && b && [a, b].every(k => k.name === original.get(k.id)?.name && k.description === original.get(k.id)?.description) && !a.conflicts.includes(right)) a.conflicts.push(right);
@@ -92,12 +106,12 @@ export function openStore(file, write = atomicWrite) {
   try { state = JSON.parse(readFileSync(file, 'utf8')); validateState(state); }
   catch (error) {
     if (error.code !== 'ENOENT') throw Error(`本地数据无法读取：${error.message}。原文件已保留，请修复或备份后重试。`);
-    state = { version: 2, seedRevision, keywords: clone(seed), history: [], favorites: [] };
+    state = { version: 2, seedRevision, keywords: clone(seed), libraries: [], history: [], favorites: [] };
     mkdirSync(dirname(file), { recursive: true }); write(file, state);
   }
   const migrated = upgradeState(state);
   if (migrated !== state) {
-    try { copyFileSync(file, `${file}.before-v2.bak`, constants.COPYFILE_EXCL); }
+    try { copyFileSync(file, `${file}.before-v${seedRevision}.bak`, constants.COPYFILE_EXCL); }
     catch (error) { if (error.code !== 'EEXIST') throw Error('无法备份旧数据，升级未提交，请检查数据目录权限。'); }
     try { write(file, migrated); } catch { throw Error('无法保存升级后的词库，原数据已保留，请检查磁盘与目录权限。'); }
     state = migrated;
@@ -121,14 +135,20 @@ function shuffle(values) {
   return copy;
 }
 
-export function draw(all, input, maxNodes = 50000) {
+export function draw(all, input, maxNodes = 50000, libraries = []) {
   if (!object(input)) bad('抽取参数必须为 JSON 对象。');
+  if (Object.keys(input).some(key => !['libraryId', 'dimensions', 'mode', 'countPerDimension', 'locked', 'current'].includes(key))) bad('抽取参数包含不支持的字段，请查看接口说明。');
   const selected = input.dimensions ?? dimensionIds;
   const mode = input.mode ?? 'coordinated';
   const countPerDimension = input.countPerDimension ?? 'random';
   if (!Array.isArray(selected) || !selected.length || selected.length > 8 || selected.some(d => !dimensionIds.includes(d)) || new Set(selected).size !== selected.length) bad('请选择一到八个不重复的有效维度。');
   if (!['coordinated', 'free'].includes(mode)) bad('模式必须为 coordinated 或 free。');
-  if (!['random', 1, 2, 3].includes(countPerDimension)) bad('countPerDimension 必须为 random、1、2 或 3。');
+  if (!['random', 1, 2, 3, 4, 5].includes(countPerDimension)) bad('countPerDimension 必须为 random 或 1–5 的整数。');
+  const libraryId = input.libraryId === undefined ? 'all' : input.libraryId;
+  if (typeof libraryId !== 'string') bad('libraryId 必须是词库 ID 字符串。');
+  const library = listLibraries({ keywords: all, libraries }).find(l => l.id === libraryId);
+  if (!library) bad('所选词库已失效，请重新加载词库。');
+  const eligible = new Set(library.keywordIds);
   const byId = new Map(all.map(k => [k.id, k]));
   function normalize(map) {
     if (!object(map)) bad('locked 和 current 必须为「维度 ID: 词条 ID 数组」对象。');
@@ -136,7 +156,7 @@ export function draw(all, input, maxNodes = 50000) {
     for (const [dim, value] of Object.entries(map)) {
       if (!selected.includes(dim)) bad('锁定或当前结果包含未启用维度。');
       const ids = typeof value === 'string' ? [value] : value;
-      if (!Array.isArray(ids) || !ids.length || ids.length > 3 || new Set(ids).size !== ids.length) bad('每个维度应包含一到三个不重复的词条 ID。');
+      if (!Array.isArray(ids) || !ids.length || ids.length > 5 || new Set(ids).size !== ids.length) bad('每个维度应包含一到五个不重复的词条 ID。');
       if (ids.some(id => typeof id !== 'string' || byId.get(id)?.dimension !== dim)) bad('引用的词条已失效或维度不符，请重新加载词库。');
       result[dim] = ids;
     }
@@ -144,6 +164,8 @@ export function draw(all, input, maxNodes = 50000) {
   }
   const locked = normalize(input.locked ?? {}); const current = normalize(input.current ?? {});
   const fixed = Object.values(locked).flat().map(id => byId.get(id));
+  const outside = fixed.find(k => !eligible.has(k.id));
+  if (outside) throw new AppError(409, `锁定的「${outside.name}」不在「${library.name}」中，请解锁该维度或切换词库。`, 'LOCK_OUTSIDE_LIBRARY');
   const pending = dimensionIds.filter(d => selected.includes(d) && !Object.hasOwn(locked, d));
   if (!pending.length) bad('全部维度已锁定，请至少解锁一个维度。');
   if (mode === 'coordinated') for (let i = 0; i < fixed.length; i++) for (const other of fixed.slice(i + 1)) {
@@ -151,7 +173,7 @@ export function draw(all, input, maxNodes = 50000) {
   }
   const counts = new Map();
   const pools = new Map(pending.map(dim => {
-    let pool = shuffle(all.filter(k => k.dimension === dim));
+    let pool = shuffle(all.filter(k => k.dimension === dim && eligible.has(k.id)));
     if (!pool.length) throw new AppError(409, `「${dimensionName(dim)}」词库为空，请添加词条或取消该维度。`, 'EMPTY_DIMENSION');
     if (mode === 'coordinated') pool = pool.filter(k => fixed.every(f => !conflicts(k, f)));
     const count = countPerDimension === 'random' ? (pool.length >= 3 ? randomInt(2, 4) : 2) : countPerDimension;
@@ -198,7 +220,7 @@ export function draw(all, input, maxNodes = 50000) {
     return retained.length ? [`「${dimensionName(d)}」为满足当前数量与约束，保留了 ${retained.length} 条：${retained.map(k => k.name).join('、')}。`] : [];
   });
   const label = mode === 'coordinated' ? '协调模式' : '自由模式';
-  return { id: randomUUID(), createdAt: new Date().toISOString(), mode, countPerDimension, items, warnings,
+  return { id: randomUUID(), createdAt: new Date().toISOString(), mode, countPerDimension, library: { id: library.id, name: library.name }, items, warnings,
     text: `设计灵感 · ${label}\n将同一维度的术语作为可组合的灵感线索，结合任务确定主次与应用范围。\n\n` + dimensionIds.filter(d => selected.includes(d)).map(d => `${dimensionName(d)}\n` + items.filter(k => k.dimension === d).map(k => `• ${k.name}\n  ${k.description}`).join('\n')).join('\n\n') };
 }
 
@@ -208,6 +230,7 @@ export function mutateKeyword(state, method, id, body) {
   if (method === 'DELETE') {
     state.keywords.splice(index, 1);
     for (const k of state.keywords) k.conflicts = k.conflicts.filter(other => other !== id);
+    for (const library of state.libraries ?? []) library.keywordIds = library.keywordIds.filter(other => other !== id);
     return { deleted: id };
   }
   if (!object(body)) bad('词条参数必须为 JSON 对象。');
@@ -223,3 +246,22 @@ export function mutateKeyword(state, method, id, body) {
 }
 
 export { dimensions };
+
+export function validateLibrary(value, keywords) {
+  if (!object(value) || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 60) bad('词库名称不能为空，且不能超过 60 字。');
+  const ids = new Set(keywords.map(k => k.id));
+  if (!Array.isArray(value.keywordIds) || value.keywordIds.length > 5000 || new Set(value.keywordIds).size !== value.keywordIds.length || value.keywordIds.some(id => typeof id !== 'string' || !ids.has(id))) bad('词库应包含不重复且有效的词条 ID，请重新加载后选择。');
+  return { name: value.name.trim(), keywordIds: [...value.keywordIds] };
+}
+
+export function mutateLibrary(state, method, id, body) {
+  state.libraries ??= [];
+  const index = state.libraries.findIndex(l => l.id === id);
+  if (method !== 'POST' && index < 0) throw new AppError(404, '个人词库不存在；内置词库可另存为个人词库。', 'NOT_FOUND');
+  if (method === 'DELETE') { state.libraries.splice(index, 1); return { deleted: id }; }
+  if (method === 'POST' && state.libraries.length >= 100) bad('最多保存 100 个个人词库，请先删除不再使用的词库。');
+  if (!object(body) || Object.keys(body).some(key => !['name', 'keywordIds'].includes(key))) bad('个人词库只接受 name 和 keywordIds 字段。');
+  const library = { id: method === 'POST' ? randomUUID() : id, ...validateLibrary({ ...(state.libraries[index] ?? {}), ...body }, state.keywords) };
+  if (method === 'POST') state.libraries.push(library); else state.libraries[index] = library;
+  return { ...library, builtIn: false };
+}

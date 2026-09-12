@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { once } from 'node:events';
 import { request as httpRequest } from 'node:http';
-import { draw as drawMany, conflicts, openStore, atomicWrite, validateState, mutateKeyword } from './core.mjs';
+import { draw as drawMany, conflicts, openStore, atomicWrite, validateState, mutateKeyword, mutateLibrary } from './core.mjs';
 import { keywords, dimensions } from './seed.mjs';
+import { extraEntries } from './seed-extra.mjs';
+import { listLibraries, themes } from './libraries.mjs';
 import { createApp } from './server.mjs';
 
 const draw = (all, input, maxNodes) => drawMany(all, input && typeof input === 'object' && !Array.isArray(input) ? { countPerDimension: 1, ...input } : input, maxNodes);
@@ -20,9 +22,9 @@ async function request(base, path, method = 'GET', body, headers = {}) {
   return { status: response.status, body: await response.json() };
 }
 
-test('400 条种子词条完整、ID 唯一、互斥引用有效', () => {
-  assert.equal(keywords.length, 400); assert.equal(new Set(keywords.map(k => k.id)).size, 400);
-  for (const d of dimensions) assert.equal(keywords.filter(k => k.dimension === d.id).length, 50);
+test('1200 条种子词条完整、ID 唯一、互斥引用有效', () => {
+  assert.equal(keywords.length, 1200); assert.equal(new Set(keywords.map(k => k.id)).size, 1200);
+  for (const d of dimensions) assert.equal(keywords.filter(k => k.dimension === d.id).length, 150);
   validateState({ version: 1, keywords, history: [], favorites: [] });
   assert.match(keywords.find(k => k.id === 'material-01').description, /晴天.*雨天.*雪天.*风天/);
 });
@@ -77,7 +79,7 @@ test('事务保存失败保留原始内存及磁盘；损坏文件不被重置',
   const store = openStore(file, (target, state) => { if (fail) throw Error('模拟磁盘只读'); atomicWrite(target, state); });
   const before = readFileSync(file, 'utf8'); fail = true;
   expectCode(() => store.transact(state => { state.keywords.pop(); }), 'SAVE_FAILED');
-  assert.equal(store.state.keywords.length, 400); assert.equal(readFileSync(file, 'utf8'), before);
+  assert.equal(store.state.keywords.length, 1200); assert.equal(readFileSync(file, 'utf8'), before);
   for (const corrupt of ['{ broken', JSON.stringify({ version: 1, keywords: [], history: [{}], favorites: [] })]) {
     writeFileSync(file, corrupt, 'utf8'); assert.throws(() => openStore(file), /原文件已保留/); assert.equal(readFileSync(file, 'utf8'), corrupt);
   }
@@ -85,7 +87,7 @@ test('事务保存失败保留原始内存及磁盘；损坏文件不被重置',
 
 test('HTTP 全流程：编辑、并发写、互斥双向解除、历史快照、收藏与重启', { timeout: 30000 }, async t => {
   const file = temp(t); let app = createApp({ dataFile: file }); t.after(() => close(app)); let base = await listen(app);
-  const catalog = await request(base, '/api/catalog'); assert.equal(catalog.status, 200); assert.equal(catalog.body.keywords.length, 400);
+  const catalog = await request(base, '/api/catalog'); assert.equal(catalog.status, 200); assert.equal(catalog.body.keywords.length, 1200);
   const created = await request(base, '/api/keywords', 'POST', { name: '测试风格', description: '编辑前说明', dimension: 'style', conflicts: ['color-01'] });
   assert.equal(created.status, 201); const id = created.body.id;
   const record = await request(base, '/api/draw', 'POST', { dimensions: ['style', 'color'], mode: 'free', locked: { style: id } });
@@ -98,7 +100,7 @@ test('HTTP 全流程：编辑、并发写、互斥双向解除、历史快照、
   await request(base, `/api/keywords/${id}`, 'PATCH', { name: '修改后标题', description: '修改后说明', conflicts: ['color-02'] });
   const added = await Promise.all(Array.from({ length: 4 }, (_, i) => request(base, '/api/keywords', 'POST', { name: `并发 ${i}`, description: '同时写入不会丢失', dimension: 'type' })));
   assert.ok(added.every(r => r.status === 201));
-  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 405);
+  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 1205);
   await request(base, `/api/keywords/${id}`, 'DELETE');
   assert.ok((await request(base, '/api/catalog')).body.keywords.every(k => !k.conflicts.includes(id)));
   const stale = await request(base, '/api/draw', 'POST', { dimensions: ['style'], current: { style: id } }); assert.equal(stale.status, 400);
@@ -109,7 +111,7 @@ test('HTTP 全流程：编辑、并发写、互斥双向解除、历史快照、
   assert.equal((await request(base, '/api/history')).body.length, 100);
   assert.deepEqual((await request(base, '/api/favorites')).body[0], snapshot);
   await close(app); app = createApp({ dataFile: file }); base = await listen(app);
-  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 404);
+  assert.equal((await request(base, '/api/catalog')).body.keywords.length, 1204);
   assert.equal((await request(base, '/api/history')).body.length, 100);
   assert.deepEqual((await request(base, '/api/favorites')).body[0], snapshot);
   assert.equal((await request(base, `/api/favorites/${snapshot.id}`, 'DELETE')).status, 200);
@@ -173,7 +175,7 @@ test('同维互斥、候选不足、数组输入与旧单条接口兼容', () =>
   assert.equal(drawMany(all,{dimensions:['style'],countPerDimension:3,mode:'free'}).items.length,3);
   expectCode(() => drawMany([key('s','style')],{dimensions:['style']}), 'INSUFFICIENT_CANDIDATES');
   expectCode(() => drawMany(all,{dimensions:['style','color'],locked:{style:['s0','s1']}}), 'LOCK_CONFLICT');
-  for (const input of [{countPerDimension:4},{countPerDimension:'2'},{locked:{style:[]}},{current:{style:['s0','s0']}},{current:{style:['gone']}},{locked:{style:['s0','s1','s2','s3']}}]) expectCode(() => drawMany(all,input),'INVALID_INPUT');
+  for (const input of [{countPerDimension:6},{countPerDimension:'2'},{locked:{style:[]}},{current:{style:['s0','s0']}},{current:{style:['gone']}},{locked:{style:['s0','s1','s2','s3','s4','s5']}}]) expectCode(() => drawMany(all,input),'INVALID_INPUT');
   const legacy = drawMany(keywords,{dimensions:['style','color'],countPerDimension:1,locked:{style:'style-02'},current:{color:'color-03'}});
   assert.equal(legacy.items.length,2); assert.equal(legacy.items[0].id,'style-02');
 });
@@ -189,8 +191,8 @@ test('旧数据一次性升级：保留改词、删词、收藏历史，备份�
   const original = JSON.stringify({version:1,keywords:oldKeywords,history:[oldRecord],favorites:[oldRecord]});
   writeFileSync(file,original,'utf8');
   const store = openStore(file);
-  assert.equal(store.state.version,2); assert.equal(store.state.seedRevision,2); assert.equal(store.state.keywords.length,400);
-  assert.equal(readFileSync(file+'.before-v2.bak','utf8'),original);
+  assert.equal(store.state.version,2); assert.equal(store.state.seedRevision,3); assert.equal(store.state.keywords.length,1200);
+  assert.equal(readFileSync(file+'.before-v3.bak','utf8'),original);
   assert.ok(!store.state.keywords.some(k => k.id === 'style-02'));
   assert.deepEqual(store.state.keywords.find(k => k.id === 'style-01'),edited);
   assert.deepEqual(store.state.history,[oldRecord]); assert.deepEqual(store.state.favorites,[oldRecord]);
@@ -199,7 +201,7 @@ test('旧数据一次性升级：保留改词、删词、收藏历史，备份�
   assert.ok(!again.state.keywords.some(k => k.id === 'color-50'));
   assert.equal(again.state.keywords.find(k => k.id === 'style-50').name,'新增术语也可自行修改');
   assert.equal(again.state.history.length,2); assert.deepEqual(again.state.favorites,[oldRecord]);
-  assert.equal(readFileSync(file+'.before-v2.bak','utf8'),original);
+  assert.equal(readFileSync(file+'.before-v3.bak','utf8'),original);
 });
 
 test('升级写入失败不覆盖原数据', t => {
@@ -207,7 +209,124 @@ test('升级写入失败不覆盖原数据', t => {
   writeFileSync(file,original,'utf8');
   assert.throws(() => openStore(file, () => { throw Error('模拟磁盘错误'); }), /原数据已保留/);
   assert.equal(readFileSync(file,'utf8'),original);
-  assert.equal(readFileSync(file+'.before-v2.bak','utf8'),original);
+  assert.equal(readFileSync(file+'.before-v3.bak','utf8'),original);
+});
+
+test('主题词库分配完整且每维度术语不重名，全部新增说明独立完整', () => {
+  const libraries = listLibraries({ keywords });
+  assert.equal(libraries.length, 12); assert.equal(libraries[0].keywordIds.length, 1200); assert.equal(libraries[1].keywordIds.length, 400);
+  for (const dimension of dimensions) {
+    const terms = keywords.filter(k => k.dimension === dimension.id);
+    assert.equal(new Set(terms.map(k => k.name)).size, 150);
+    assert.equal(extraEntries[dimension.id].length, 100);
+    assert.ok(extraEntries[dimension.id].every(row => row.length === 2 && row[1].length >= 20));
+  }
+  for (const theme of themes) {
+    const library = libraries.find(l => l.id === theme.id);
+    assert.equal(library.keywordIds.length, 80);
+    for (const d of dimensions) assert.equal(keywords.filter(k => k.dimension === d.id && library.keywordIds.includes(k.id)).length, 10);
+    for (const mode of ['free', 'coordinated']) {
+      const record = drawMany(keywords, { libraryId: theme.id, mode, countPerDimension: 3 });
+      assert.equal(record.items.length, 24);
+      assert.ok(record.items.every(k => library.keywordIds.includes(k.id)));
+      if (mode === 'coordinated') for (const a of record.items) for (const b of record.items) if (a !== b) assert.equal(conflicts(a, b), false);
+    }
+  }
+});
+
+test('个人词库候选范围、锁定、失效词库与空范围均可解释', () => {
+  const state = { keywords: structuredClone(keywords), libraries: [] };
+  const library = mutateLibrary(state, 'POST', undefined, { name: '古典片段', keywordIds: ['style-51','style-52','style-53','color-51','color-54','color-55'] });
+  const input = { dimensions: ['style','color'], libraryId: library.id, mode: 'free', countPerDimension: 2 };
+  const first = drawMany(state.keywords, input, 50000, state.libraries);
+  assert.ok(first.items.every(k => library.keywordIds.includes(k.id)));
+  const locked = { style: first.items.filter(k => k.dimension === 'style').map(k => k.id) };
+  const second = drawMany(state.keywords, { ...input, locked }, 50000, state.libraries);
+  assert.deepEqual(second.items.filter(k => k.dimension === 'style'), first.items.filter(k => k.dimension === 'style'));
+  expectCode(() => drawMany(state.keywords, { ...input, locked: { style: ['style-01'] } }, 50000, state.libraries), 'LOCK_OUTSIDE_LIBRARY');
+  for (const libraryId of ['gone', null, [], 1]) expectCode(() => drawMany(keywords, { libraryId }), 'INVALID_INPUT');
+  expectCode(() => drawMany(keywords, { unsupported: true }), 'INVALID_INPUT');
+  const snapshot = structuredClone(first);
+  mutateLibrary(state, 'PATCH', library.id, { name: '更名后', keywordIds: [] });
+  expectCode(() => drawMany(state.keywords, input, 50000, state.libraries), 'EMPTY_DIMENSION');
+  assert.deepEqual(first, snapshot); assert.equal(first.library.name, '古典片段');
+  mutateLibrary(state, 'DELETE', library.id);
+  expectCode(() => drawMany(state.keywords, input, 50000, state.libraries), 'INVALID_INPUT');
+  for (const body of [{ name: '', keywordIds: [] }, { name: '错误', keywordIds: ['gone'] }, { name: '错误', keywordIds: ['style-01','style-01'] }, { id: 'owned', name: '错误', keywordIds: [] }]) expectCode(() => mutateLibrary(state, 'POST', undefined, body), 'INVALID_INPUT');
+  expectCode(() => mutateLibrary(state, 'DELETE', 'classical'), 'NOT_FOUND');
+});
+
+test('400 条词库升级保留改删、手工约束、记录与个人词库，新增范围只合并一次', t => {
+  const file = temp(t);
+  const old = structuredClone(keywords.filter(k => Number(k.id.split('-')[1]) <= 50 && k.id !== 'color-21'));
+  old.push(key('my-private-word', 'style'));
+  const ids = new Set(old.map(k => k.id));
+  for (const keyword of old) keyword.conflicts = keyword.conflicts.filter(id => ids.has(id));
+  old.find(k => k.id === 'style-50').name = '我的个人修改';
+  old.find(k => k.id === 'motion-01').conflicts = [];
+  const record = draw(old, { mode: 'free' }); delete record.library;
+  const original = JSON.stringify({ version: 2, seedRevision: 2, keywords: old, libraries: [{ id: 'my-library', name: '我的选择', keywordIds: ['my-private-word','style-50'] }], history: [record], favorites: [record] });
+  writeFileSync(file, original, 'utf8');
+  const store = openStore(file);
+  assert.equal(store.state.keywords.length, 1200); assert.equal(store.state.seedRevision, 3);
+  assert.equal(readFileSync(file + '.before-v3.bak', 'utf8'), original);
+  assert.ok(!store.state.keywords.some(k => k.id === 'color-21'));
+  assert.equal(store.state.keywords.find(k => k.id === 'style-50').name, '我的个人修改');
+  assert.ok(!store.state.keywords.find(k => k.id === 'motion-01').conflicts.includes('motion-02'));
+  assert.deepEqual(store.state.history, [record]); assert.deepEqual(store.state.favorites, [record]);
+  store.transact(state => { mutateKeyword(state, 'DELETE', 'style-51'); mutateKeyword(state, 'DELETE', 'my-private-word'); });
+  const reopened = openStore(file);
+  assert.ok(!reopened.state.keywords.some(k => ['style-51','my-private-word'].includes(k.id)));
+  assert.deepEqual(reopened.state.libraries[0].keywordIds, ['style-50']);
+  assert.equal(readFileSync(file + '.before-v3.bak', 'utf8'), original);
+});
+
+test('个人词库 HTTP 编辑与抽取共享历史，重启保存，删除词条清理引用', { timeout: 20000 }, async t => {
+  const file = temp(t); let fail = false;
+  let app = createApp({ dataFile: file, write: (path, state) => { if (fail) throw Error('磁盘失败'); atomicWrite(path, state); } });
+  t.after(() => close(app)); let base = await listen(app);
+  const catalog = (await request(base, '/api/catalog')).body; assert.equal(catalog.apiVersion, 3); assert.equal(catalog.libraries.length, 12);
+  const created = await request(base, '/api/libraries', 'POST', { name: '窄范围', keywordIds: ['style-51','style-52','style-53'] });
+  assert.equal(created.status, 201); const id = created.body.id;
+  const drawn = await request(base, '/api/draw', 'POST', { libraryId: id, dimensions: ['style'], countPerDimension: 2 });
+  assert.equal(drawn.status, 201); assert.equal(drawn.body.library.name, '窄范围');
+  await request(base, '/api/favorites', 'POST', { recordId: drawn.body.id });
+  const before = readFileSync(file, 'utf8'); fail = true;
+  assert.equal((await request(base, `/api/libraries/${id}`, 'PATCH', { name: '不应保存' })).status, 500);
+  assert.equal(readFileSync(file, 'utf8'), before); fail = false;
+  assert.equal((await request(base, `/api/libraries/${id}`, 'PATCH', { name: '外站修改' }, { Origin: 'https://example.com' })).status, 403);
+  await request(base, `/api/libraries/${id}`, 'PATCH', { name: '已更名' });
+  await request(base, '/api/keywords/style-51', 'DELETE');
+  await close(app); app = createApp({ dataFile: file }); base = await listen(app);
+  const library = (await request(base, '/api/libraries')).body.find(l => l.id === id);
+  assert.equal(library.name, '已更名'); assert.deepEqual(library.keywordIds, ['style-52','style-53']);
+  assert.deepEqual((await request(base, '/api/favorites')).body[0], drawn.body);
+  await request(base, `/api/libraries/${id}`, 'DELETE');
+  assert.equal((await request(base, '/api/draw', 'POST', { libraryId: id })).status, 400);
+  assert.deepEqual((await request(base, '/api/history')).body[0], drawn.body);
+});
+
+test('固定数量 1–5、五词锁定与单维重抽、数量校验及五词快照重启', { timeout: 20000 }, async t => {
+  for (const mode of ['free', 'coordinated']) for (let countPerDimension = 1; countPerDimension <= 5; countPerDimension++) {
+    const record = drawMany(keywords, { mode, countPerDimension });
+    for (const d of dimensions) assert.equal(record.items.filter(k => k.dimension === d.id).length, countPerDimension);
+    assert.equal(new Set(record.items.map(k => k.id)).size, 8 * countPerDimension);
+  }
+  for (const countPerDimension of [0, 6, -1, 1.5, '5']) expectCode(() => drawMany(keywords, { countPerDimension }), 'INVALID_INPUT');
+  const initial = drawMany(keywords, { libraryId: 'classical', countPerDimension: 5, mode: 'free' });
+  const current = Object.fromEntries(dimensions.map(d => [d.id, initial.items.filter(k => k.dimension === d.id).map(k => k.id)]));
+  const locked = Object.fromEntries(Object.entries(current).filter(([d]) => d !== 'color'));
+  const next = drawMany(keywords, { libraryId: 'classical', countPerDimension: 1, mode: 'free', current, locked });
+  assert.equal(next.items.filter(k => k.dimension === 'color').length, 1);
+  for (const d of dimensions.filter(d => d.id !== 'color')) assert.deepEqual(next.items.filter(k => k.dimension === d.id), initial.items.filter(k => k.dimension === d.id));
+  expectCode(() => drawMany(keywords, { current: { style: ['style-51','style-52','style-53','style-54','style-55','style-56'] } }), 'INVALID_INPUT');
+  const file = temp(t); let app = createApp({ dataFile: file }); t.after(() => close(app)); let base = await listen(app);
+  const record = await request(base, '/api/draw', 'POST', { countPerDimension: 5, libraryId: 'classical', dimensions: ['style','color'] });
+  assert.equal(record.status, 201); assert.equal(record.body.items.length, 10);
+  await request(base, '/api/favorites', 'POST', { recordId: record.body.id });
+  await close(app); app = createApp({ dataFile: file }); base = await listen(app);
+  assert.deepEqual((await request(base, '/api/history')).body[0], record.body);
+  assert.deepEqual((await request(base, '/api/favorites')).body[0], record.body);
 });
 
 process.on('exit', code => { if (code === 0) console.log('DONE'); });

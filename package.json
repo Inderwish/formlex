@@ -1,10 +1,10 @@
 {
   "name": "formlex",
-  "description": "形意词库：面向设计师与 agent 的 400 条美术与设计术语及灵感组合工具。",
+  "description": "形意词库：1,200 条美术与设计术语、主题与自选词库、可选 MCP 抽取工具。",
   "repository": { "type": "git", "url": "https://github.com/Inderwish/formlex.git" },
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node server.mjs", "test": "node --test tests.test.mjs" },
+  "scripts": { "start": "node server.mjs", "mcp": "node mcp.mjs", "test": "node --test tests.test.mjs mcp.test.mjs" },
   "engines": { "node": ">=22" }
 }

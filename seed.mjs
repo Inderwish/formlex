@@ -1,3 +1,5 @@
+import { extraEntries } from './seed-extra.mjs';
+
 export const dimensions = [
   { id: 'style', name: '风格', en: 'STYLE' },
   { id: 'color', name: '色彩', en: 'COLOR' },
@@ -447,7 +449,8 @@ const additions = {
   ],
 };
 for (const d of dimensions) entries[d.id].push(...additions[d.id]);
-export const seedRevision = 2;
+for (const d of dimensions) entries[d.id].push(...(extraEntries[d.id] ?? []));
+export const seedRevision = 3;
 
 export const keywords = dimensions.flatMap(d => entries[d.id].map(([name, description], i) => ({
   id: `${d.id}-${String(i + 1).padStart(2, '0')}`, dimension: d.id, name, description, conflicts: [],
@@ -477,6 +480,13 @@ export const expansionConflicts = [
   ['layout-30','layout-29'], ['layout-39','layout-40'], ['shape-32','shape-50'],
   ['type-41','type-42'], ['type-43','type-44'], ['shape-01','shape-21'], ['shape-01','shape-22'],
 ];
+// Explicit multi-hue palettes cannot satisfy a strict single-hue or achromatic brief.
+const multiHueNames = ['宝石色调 Jewel Tones', '青金石与赭金', '紫袍与旧金', '珐琅多色镶嵌', '古典五色调', '洛可可粉彩', '赭石与花青', '石青石绿', '胭脂与藕灰', '等明度色带', '汽水互撞色', '漫画四色印象', '冰淇淋三色', '原色大色面', '复古游乐场配色', '酸绿与复印紫', '珊瑚礁色群', '沙漠日照色', '赛博青品红', '蒸汽波粉青', '合成日落色带', '全息虹彩边缘', '红外伪彩映射', '陶土与釉青', '氧化铜综合色', '青橙分离色'];
+for (const name of multiHueNames) {
+  const keyword = keywords.find(k => k.dimension === 'color' && k.name === name);
+  if (!keyword) throw Error(`缺少互斥规则引用的词条：${name}`);
+  for (const source of ['style-01', 'color-01', 'color-07', 'color-37']) expansionConflicts.push([source, keyword.id]);
+}
 for (const [left, right] of expansionConflicts) {
   const entry = keywords.find(k => k.id === left);
   if (!entry.conflicts.includes(right)) entry.conflicts.push(right);
