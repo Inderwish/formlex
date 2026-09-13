@@ -37,7 +37,7 @@ test('完整提示词保留每条说明及优先级，共用规则完整包含�
     assert.equal(text.split(k.description).length - 1, 1, `完整保留一次说明：${k.id}`);
     assert.ok(text.includes(`• ${k.name}（`));
   }
-  for (const section of [requirements, reconstructionRules, implementation, conflictRules, verification]) assert.ok(text.includes(section));
+  for (const section of [requirements, implementation, conflictRules, verification]) assert.ok(text.includes(section));
   assert.ok(text.indexOf('## 材质') < text.indexOf('## 风格'));
   assert.ok(text.includes('冷蓝（重点）'));
   assert.equal(text.includes('runtime/cli.mjs'), false);
@@ -97,23 +97,30 @@ test('面向 agent 的文本只输出设计信息，不泄露抽取元数据且�
   assert.equal(buildKeywordText({ ...snapshot, items: [] }, dimensions), '');
 });
 
-test('四档强度只展开所选规则，保留范围原样输入，空设置沿用对话且不污染记录', () => {
+test('四档强度只展开所选规则；未选或清除不复制强度，保留范围独立生效且不污染记录', () => {
   const before = structuredClone(record);
   const preserve = '保留品牌色 #123456、16px 正文及既有支付能力。\n允许调整导航布局。';
   for (const level of reconstructionLevels) {
     const draft = { reconstruction: level.id, preserve, dimensionPriorities: { material: 'dominant' } };
     const text = buildDesignPrompt(record, dimensions, draft);
-    assert.ok(text.includes(`重构强度：${level.name}\n${level.rule}`));
+    assert.ok(text.includes(`## 重构强度\n\n${level.name}\n${level.rule}`));
+    assert.ok(text.includes(reconstructionRules));
     assert.ok(text.includes(preserve));
     assert.ok(text.includes('液态金属（主导）'));
     for (const other of reconstructionLevels.filter(other => other.id !== level.id)) assert.ok(!text.includes(other.rule));
     for (const k of record.items) assert.ok(text.includes(k.description));
   }
   const empty = buildDesignPrompt(record, dimensions);
-  assert.ok(empty.includes('重构任务仍未明确强度时先询问'));
+  assert.ok(!empty.includes('重构强度'));
+  assert.ok(!empty.includes(reconstructionRules));
+  assert.ok(!empty.includes('必须保留：'));
   assert.ok(!empty.includes(preserve));
   for (const level of reconstructionLevels) assert.ok(!empty.includes(level.rule));
   assert.equal(buildDesignPrompt(record, dimensions, { reconstruction: 'obsolete' }), empty);
+  assert.equal(buildDesignPrompt(record, dimensions, { reconstruction: '' }), empty);
+  const preserveOnly = buildDesignPrompt(record, dimensions, { preserve });
+  assert.ok(preserveOnly.includes(`必须保留：${preserve}`));
+  assert.ok(!preserveOnly.includes('重构强度'));
   assert.equal(buildKeywordText(record, dimensions).includes(preserve), false);
   assert.deepEqual(record, before);
 });

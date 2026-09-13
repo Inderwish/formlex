@@ -1,5 +1,5 @@
 // Shared by the browser prompt composer and the generated Codex Skill.
-export const rulesVersion = '1.6.0';
+export const rulesVersion = '1.6.1';
 export const reconstructionLevels = [
   { id: 'polish', name: '局部打磨', summary: '保留整体结构，调整指定区域', rule: '保留整体结构，改进用户指定区域的字阶、间距、配色和状态，不擅自扩大修改范围。' },
   { id: 'visual', name: '视觉重做', summary: '保留内容组织，重做视觉系统', rule: '保留内容组织，重新设计字体、配色、组件形态、材质和动效，形成完整的视觉变化。' },
@@ -7,7 +7,7 @@ export const reconstructionLevels = [
   { id: 'redesign', name: '重新设计', summary: '从功能需求重新构建界面', rule: '以现有页面提供的功能和内容为依据，从任务与设计词条重新构建界面；不默认沿用原有页面骨架或组件组合。' },
 ];
 export const reconstructionRules = [
-  '重构强度由用户决定。对话或提示词已经明确时直接执行，不重复确认；仍未明确时先询问，不自行选择档位或降低已选强度。新建页面任务按用户需求设计，无需套用重构强度。',
+  '重构强度是可选设置，由用户决定。用户已经选择时按对应范围直接执行，不重复确认或降低已选强度；未选择时按原始任务与明确约束执行，不强制选择档位，也不额外套用强度要求。',
   '保留功能能力、数据含义和用户明确的品牌、技术及界面约束。仅将用户明确指定的界面形式列为必须保留；已有布局、侧栏、卡片组合或阅读顺序不因已经存在就自动受到保护。',
   '结构重构与重新设计先确定新的内容组织、阅读路径和页面骨架，再安排视觉细节。仅换色、换字体、增加背景和装饰不能通过结构重构的验收。对照原页面检查结构与视觉关系是否达到所选强度。',
   '每档强度均需落实全部词条。强度、必须保留范围与词条要求无法同时满足时，明确冲突并询问用户，不擅自扩大范围、降低强度或丢弃要求。',
@@ -25,7 +25,6 @@ export const requirements = [
 export const implementation = [
   '按用户任务判断交付范围：要求构建、修改或重构时完成代码与效果检查，不停在设计简报；只要灵感或方案时仅输出方案，不修改代码。保留业务功能、内容含义及用户明确的品牌、技术和范围约束。',
   '先按页面用途确定核心信息、主要操作与辅助内容的优先级，再分配设计词条。主导词条优先服务真正重要的信息和操作，重点词条强化其相关内容；不能因为次要统计、贴纸或角落更方便制作效果，就把主导表达分配给它们，而让核心内容停留在弱层级。遵循用户明确指定的作用范围。',
-  '按用户指定的重构强度安排设计投入，先确定内容组织与操作方式，再安排材质和装饰；实现变化须符合所选强度与必须保留范围。',
   '实现前逐条安排「词条 → 应用区域或状态 → 可感知特征 → 完成标准」。主次表示表达强弱，不表示是否需要实现；多个风格或效果可分配到不同区域、层级与状态。先验证困难的结构和交互，再完成内容与视觉修饰。',
   '落实必须体现在实际的视觉、布局、排版、形状、材质、动效或交互中。把术语写成标题、标签、说明、游戏名称，或声称“借鉴了某概念”，都不能算完成；相关文字本身不能作为落实证据。文字排版类词条应改变真实字阶、字形或编排。不得擅自用设计术语替代产品内容。',
   '允许调整面积、强度、数量和出现状态，但必须保留可辨识的特征。不可感知的装饰、普通渐变冒充复杂材质、只有图标而无实际行为，都不算落实。“保持清晰、简洁、统一”用于指导实现，不能单独作为删除理由。',
@@ -71,8 +70,8 @@ export function buildKeywordText(record, dimensions) {
 }
 export function buildDesignPrompt(record, dimensions, draft = {}) {
   const level = reconstructionLevels.find(level => level.id === draft.reconstruction);
-  const scope = level ? `重构强度：${level.name}\n${level.rule}` : '重构强度：结合接收对话中用户的明确选择；重构任务仍未明确强度时先询问。';
-  const preserve = draft.preserve?.trim() || '遵循接收对话中用户明确指定的保留范围，不自行追加界面保留要求。';
+  const scope = level ? `\n\n## 重构强度\n\n${level.name}\n${level.rule}\n\n${reconstructionRules}` : '';
+  const preserve = draft.preserve?.trim() ? `\n\n必须保留：${draft.preserve.trim()}` : '';
   const terms = orderedGroups(record, dimensions, draft).map(group => `## ${group.name} · ${priority(group.priority).name}\n\n` + group.items.map(k => `• ${k.name}（${priority(effectivePriority(k, draft)).name}）\n${k.description}`).join('\n\n')).join('\n\n');
-  return `## 任务与硬约束\n\n${draft.task?.trim() || '结合本次对话中用户提供的页面任务与硬约束执行；任务尚不明确时，先向用户澄清必要信息。'}\n\n## 重构强度与保留范围\n\n${scope}\n\n必须保留：${preserve}\n\n${reconstructionRules}\n\n## 权重与全部必选原则\n\n${requirements}\n\n${terms}\n\n## 设计与实现规则\n\n${implementation}\n\n## 冲突必须询问\n\n${conflictRules}\n\n## 逐词验收\n\n${verification}`;
+  return `## 任务与硬约束\n\n${draft.task?.trim() || '结合本次对话中用户提供的页面任务与硬约束执行；任务尚不明确时，先向用户澄清必要信息。'}${preserve}${scope}\n\n## 权重与全部必选原则\n\n${requirements}\n\n${terms}\n\n## 设计与实现规则\n\n${implementation}\n\n## 冲突必须询问\n\n${conflictRules}\n\n## 逐词验收\n\n${verification}`;
 }

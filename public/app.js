@@ -472,7 +472,7 @@ function setReconstruction(value) {
   state.brief.reconstruction = value;
   $$('[data-reconstruction]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.reconstruction === value)));
   $('#reconstruction-clear').disabled = !value;
-  $('#reconstruction-hint').textContent = reconstructionLevels.find(level => level.id === value)?.rule ?? '未选择时结合接收对话；重构任务仍未明确强度，agent 会先询问。新建页面无需选择。';
+  $('#reconstruction-hint').textContent = reconstructionLevels.find(level => level.id === value)?.rule ?? '可选。未选择时，复制内容不包含重构强度及档位规则；按原始任务执行。';
   renderOutput();
 }
 on('#reconstruction-options', 'click', event => { const button = event.target.closest('[data-reconstruction]'); if (button) setReconstruction(button.dataset.reconstruction); });
