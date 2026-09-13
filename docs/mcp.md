@@ -40,7 +40,7 @@ node server.mjs
 | `search_design_keywords` | 按 `libraryId`、`dimension`、`temperature`、`query` 搜索；`limit` 默认 30，范围 1–100，`offset` 默认 0。返回术语、说明、总数及 `nextOffset`。 |
 | `draw_design_inspiration` | 接受 `libraryId`、`dimensions`、`mode`、`countPerDimension`、`featureCount`、`colorTemperature`、`locked`、`current`，成功后保存历史。 |
 
-抽取参数与 [HTTP API](api.md) 一致，默认使用全部常规词库、原八个维度、协调模式，每维度 2 条，共 16 条。显式选择 `random` 可恢复每维随机 2–3 条。`countPerDimension` 可设为整数 1–5，锁定维度仍保留原数量；`locked` 与 `current` 的每维度 ID 数组最多 5 项。主题词库及个人词库控制前八维的候选范围；协调模式只排除显式互斥。
+抽取参数与 [HTTP API](api.md) 一致，默认使用已有术语（`established`）、原八个维度、协调模式，每维度 2 条，共 16 条。显式选择 `random` 可恢复每维随机 2–3 条。`countPerDimension` 可设为整数 1–5，锁定维度仍保留原数量；`locked` 与 `current` 的每维度 ID 数组最多 5 项。已有术语、原创灵感及个人词库控制前八维的候选范围；协调模式只排除显式互斥。
 
 显式在 `dimensions` 加入 `feature` 可开启特色，也可以只传 `["feature"]`。它始终从独立全局词池抽取，数量由 `featureCount` 控制（整数 1–5，默认 1），不受 `countPerDimension` 或所选词库范围影响。`colorTemperature` 支持 `random`、`cool`、`warm`，默认随机；自由与协调模式都严格遵守冷暖标签，候选不足或锁定色彩不符时保留条件并返回原因。
 
@@ -54,7 +54,7 @@ node server.mjs
 
 ```text
 请用 FormLex 的 MCP 工具为这个页面寻找设计方向。
-先查看可用词库，选择与项目内容相符的主题；如有适合的个人词库，优先使用。
+先查看可用词库，选择已有术语或原创灵感；如有适合的个人词库，优先使用。
 再抽取需要的设计维度，将全部词条安排到实际视觉或交互中，然后实现前端。
 无法兼容的冲突先向我说明并询问，不静默丢弃词条。
 ```
@@ -63,7 +63,7 @@ node server.mjs
 
 ```json
 {
-  "libraryId": "digital",
+  "libraryId": "original",
   "dimensions": ["style", "color", "layout", "type", "material", "feature"],
   "mode": "free",
   "countPerDimension": 2,
@@ -72,30 +72,30 @@ node server.mjs
 }
 ```
 
-单独重抽一个维度时，把其他维度的结果 ID 全部放进 `locked`，并通过 `current` 传入原结果。例如，保留数字主题的风格，只重抽色彩：
+单独重抽一个维度时，把其他维度的结果 ID 全部放进 `locked`，并通过 `current` 传入原结果。例如，保留原创灵感的风格，只重抽色彩：
 
 ```json
 {
-  "libraryId": "digital",
+  "libraryId": "original",
   "dimensions": ["style", "color"],
   "mode": "free",
   "countPerDimension": 2,
-  "locked": { "style": ["style-111", "style-112"] },
+  "locked": { "style": ["style-03", "style-06"] },
   "current": {
-    "style": ["style-111", "style-112"],
+    "style": ["style-03", "style-06"],
     "color": ["color-111", "color-112"]
   }
 }
 ```
 
-全局查找鼠标光效，或只搜索主题中的暖色配色：
+全局查找鼠标光效，或只搜索原创灵感中的暖色配色：
 
 ```json
-{"libraryId":"digital","dimension":"feature","query":"鼠标","limit":10}
+{"libraryId":"original","dimension":"feature","query":"鼠标","limit":10}
 ```
 
 ```json
-{"libraryId":"classical","dimension":"color","temperature":"warm"}
+{"libraryId":"original","dimension":"color","temperature":"warm"}
 ```
 
 只抽三个网站特色：
@@ -105,6 +105,8 @@ node server.mjs
 ```
 
 实际使用时，从搜索或前一次抽取中获取 ID。工具不会读取网页当前选择，每次调用明确传参；网页中的“刷新记录”可以读取 MCP 产生的结果。
+
+推荐列表只显示 established、original 及个人词库。旧主题、all、foundation 的 ID 仍可显式调用。搜索和抽取均返回完整正文及出处元数据，不新增查询命令。[资料字段](terminology.md)
 
 ## 返回与错误
 

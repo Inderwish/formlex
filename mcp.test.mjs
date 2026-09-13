@@ -64,19 +64,19 @@ test('真实 stdio MCP：查询、自选范围、抽取、锁定、历史一致�
     const tools = (await send('tools/list')).result.tools;
     assert.equal(tools.length, 3); assert.equal(tools.find(t => t.name === 'draw_design_inspiration').annotations.readOnlyHint, false);
     const libraries = await call('list_design_libraries');
-    assert.equal(libraries.structuredContent.libraries[0].count, 1274);
+    assert.equal(libraries.structuredContent.libraries[0].id, 'established');
     assert.equal(libraries.structuredContent.featurePool.count, 150);
     assert.equal(libraries.structuredContent.featurePool.source, 'global');
-    for (const library of libraries.structuredContent.libraries.filter(l => !['all','foundation'].includes(l.id))) {
-      assert.ok(library.temperatureCounts.cool >= 5); assert.ok(library.temperatureCounts.warm >= 5);
+    assert.deepEqual(libraries.structuredContent.libraries.map(l => l.id), ['established', 'original']);
+    for (const library of libraries.structuredContent.libraries) {
       assert.ok(!Object.hasOwn(library.counts, 'feature'));
     }
-    assert.equal(libraries.structuredContent.libraries.find(l => l.id === 'digital').counts.style, 10);
+    assert.ok((await http('/api/catalog')).libraries.find(l => l.id === 'digital').legacy);
     const page = await call('search_design_keywords', { libraryId: 'classical', dimension: 'style', limit: 2 });
     assert.equal(page.structuredContent.total, 10); assert.equal(page.structuredContent.nextOffset, 2);
     const next = await call('search_design_keywords', { libraryId: 'classical', dimension: 'style', limit: 2, offset: 2 });
     assert.notEqual(next.structuredContent.keywords[0].id, page.structuredContent.keywords[0].id);
-    const found = await call('search_design_keywords', { query: '哥特' }); assert.ok(found.structuredContent.total >= 2);
+    const found = await call('search_design_keywords', { libraryId: 'all', query: '哥特' }); assert.ok(found.structuredContent.total >= 2);
     const selected = await http('/api/libraries', { name: 'MCP 自选', keywordIds: ['style-51','style-52','style-53','color-51','color-54','color-55'] });
     const args = { libraryId: selected.id, dimensions: ['style','color'], mode: 'free', countPerDimension: 2 };
     const drawn = await call('draw_design_inspiration', args);

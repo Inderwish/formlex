@@ -1,6 +1,6 @@
 # FormLex · Codex 插件
 
-**把 1,424 条专业设计线索变成可实现的前端决策。**
+**把 1,424 条设计线索变成可实现的前端决策。**
 
 FormLex 为 coding agent 提供一套从抽取到交付的设计工作流。布局、字体、配色和形状先确定方向，材质与动效再服务于重点；把全部抽取词条逐条落实到实际视觉与交互，按普通、重点、主导安排表现强弱，帮助页面摆脱重复的模板感。术语标签和解释文字不能代替实现。
 
@@ -75,6 +75,12 @@ Skill 与网页“完整提示词”共用执行规则。全部词条默认必�
 
 Skill 仅用于前端视觉设计、探索与重构。改版强度由用户选择，明确的品牌、技术和范围限制优先；只请求方案时不会修改项目。按需查询摘要与少量相关术语，避免将完整词库塞入上下文。
 
+## 同源专业资料
+
+随包资料包括 115 条有具体出处的专业术语，以及 853 条常规原创灵感和独立的 150 条网站特色；306 条尚待核实的概念保留原说明，可用兼容 all 范围搜索或加入个人词库。分类依据内容与出处人工维护，不按名称或加入时间推断。
+
+抽取与搜索直接返回完整正文，概念定义与 FormLex 的前端建议分开；不需要读完整词库。网页完整提示词已包含全部说明，无需让 agent 再查插件。出处留在详情和 JSON 中。
+
 ## 离线抽取与工作台
 
 在本目录执行：
@@ -86,7 +92,7 @@ node runtime/cli.mjs search --input search.json
 node runtime/cli.mjs draw --source workspace --url http://127.0.0.1:3000 --input draw.json
 ```
 
-默认：原八维、协调模式、每维 2 条共 16 条，色温随机，特色关闭。支持主题、1–5 条自定义数量、冷暖色彩、独立 1–5 条特色、锁定与单项重抽。**协调模式只检查显式互斥，设计主次仍需 agent 判断。**
+默认：已有术语、原八维、协调模式、每维 2 条共 16 条，色温随机，特色关闭。支持已有术语、原创灵感、个人自选、1–5 条自定义数量、冷暖色彩、独立 1–5 条特色、锁定与单项重抽。**协调模式只检查显式互斥，设计主次仍需 agent 判断。**
 
 `builtin` 不联网、不保存历史、不写插件目录；`workspace` 显式连接已启动的 FormLex 工作台，使用个人与编辑词库并保存共享历史，连接失败直接报错。参数文件使用 UTF-8，结果为 JSON，并注明来源及保存状态。
 
@@ -112,4 +118,4 @@ codex mcp add formlex -- node /absolute/path/to/formlex/runtime/mcp.mjs --url ht
 - `assets/`：图标与工作台预览；预览展示另行启动的网页，不是插件自动打开的面板。
 - `docs/cli.md`、`integrations/`：调用说明与可选连接示例。
 
-修改运行逻辑时编辑主仓库对应源码；执行规则维护在 `public/design-rules.mjs`，插件操作部分维护在 `scripts/formlex-design.template.md`。然后执行 `node scripts/build-plugin.mjs`，将同一份规则嵌入 Skill。不要手改 runtime 副本或生成的 SKILL.md。`node scripts/build-plugin.mjs --check` 会逐文件检查一致性。网页、HTTP API v4、种子版本 4 与现有用户数据格式保持兼容。
+修改运行逻辑时编辑主仓库对应源码；执行规则维护在 `public/design-rules.mjs`，插件操作部分维护在 `scripts/formlex-design.template.md`。然后执行 `node scripts/build-plugin.mjs`，将同一份规则和专业资料嵌入插件。不要手改 runtime 副本或生成的 SKILL.md。`node scripts/build-plugin.mjs --check` 会逐文件检查一致性。HTTP API 仍为 v4，种子版本为 5；工作台迁移先备份，保留用户改删与旧快照。

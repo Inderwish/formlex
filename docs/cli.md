@@ -29,33 +29,33 @@ node runtime/cli.mjs draw --source workspace --input draw.json
 `--input` 为 UTF-8 JSON 对象文件（支持 BOM，最大 64 KB）。`libraries` 不接受字段；`search`、`draw` 的参数如下。省略文件等同 `{}`，拒绝未知字段。使用文件避免终端转义问题。例如在 **pwsh** 中：
 
 ```powershell
-Set-Content -LiteralPath draw.json -Encoding utf8 -Value '{"libraryId":"digital","dimensions":["style","color","layout","type","feature"],"colorTemperature":"cool","featureCount":1}'
+Set-Content -LiteralPath draw.json -Encoding utf8 -Value '{"libraryId":"original","dimensions":["style","color","layout","type","feature"],"colorTemperature":"cool","featureCount":1}'
 node runtime/cli.mjs draw --input draw.json
 ```
 
 ### libraries
 
-返回九个维度、独立特色词池，以及全部、基础、10 个主题和当前数据源中的个人词库摘要。各常规维度数量与五类色温数量单独列出；不返回全量词条。先用它获取有效 libraryId。
+返回九个维度、独立特色词池，以及已有术语（established）、原创灵感（original）和当前数据源中的个人词库摘要；旧范围不在推荐列表展示，但仍兼容解析。各常规维度数量与五类色温数量单独列出；不返回全量词条。先用它获取有效 libraryId。
 
 ### search
 
 `search.json`：
 
 ```json
-{"libraryId":"digital","dimension":"color","temperature":"cool","query":"蓝","limit":8,"offset":0}
+{"libraryId":"original","dimension":"color","temperature":"cool","query":"蓝","limit":8,"offset":0}
 ```
 
-- `libraryId` 默认 `all`；`dimension` 可省略，或为下表之一。
+- `libraryId` 默认 `established`；`dimension` 可省略，或为下表之一。
 - `temperature` 仅筛选色彩：`cool`、`warm`、`neutral`、`mixed`、`unspecified`。省略即不限；这里不使用 `random`。
 - `query` 搜索名称和说明，不超过 160 字；默认空字符串。
 - `limit` 为 1–100，默认 30；`offset` 非负整数。响应的 `nextOffset=null` 表示没有下一页。
-- `{"dimension":"feature","query":"鼠标","limit":8}` 搜索全局特色。特色不受主题或个人词库影响，返回 `result.source="global"`。常规查询不会混入特色。
+- `{"dimension":"feature","query":"鼠标","limit":8}` 搜索全局特色。特色不受常规分类或个人词库影响，返回 `result.source="global"`。常规查询不会混入特色。
 
 ### draw
 
 | 参数 | 取值与默认 |
 | --- | --- |
-| `libraryId` | 默认 `all`，主题或个人词库 ID 由 libraries 提供。 |
+| `libraryId` | 默认 `established`，已有术语、原创灵感或个人词库 ID 由 libraries 提供。 |
 | `dimensions` | `style` 风格、`color` 色彩、`layout` 布局、`type` 字体排版、`shape` 形状、`material` 材质、`motion` 动效、`interaction` 交互、`feature` 特色。默认原八维，可仅选特色。 |
 | `mode` | `coordinated`（默认）或 `free`。协调只排除明确配置的互斥关系。 |
 | `countPerDimension` | 整数 1–5，默认 2；也可显式选 `random`（每维随机 2–3）；不控制特色。 |
@@ -74,12 +74,16 @@ node runtime/cli.mjs draw --input draw.json
   "mode": "free",
   "countPerDimension": 2,
   "featureCount": 1,
-  "current": {"style":["style-01","style-02"],"color":["color-01","color-02"],"feature":["feature-01"]},
-  "locked": {"style":["style-01","style-02"],"feature":["feature-01"]}
+  "current": {"style":["style-21","style-24"],"color":["color-01","color-02"],"feature":["feature-01"]},
+  "locked": {"style":["style-21","style-24"],"feature":["feature-01"]}
 }
 ```
 
 完整单项重抽应保持原有 dimensions，并将目标以外所有维度放入 locked。关闭特色后，从 dimensions、locked、current 同时移除 feature；此前记录内容仍可保留。
+
+查询与抽取中的词条均返回同一份完整 `description`，以及 `origin`、`classificationReason`、`references`。资料不需要额外查询命令；来源元数据只用于核查。[字段与归类说明](terminology.md)
+
+旧 `all`、`foundation` 及十个主题 ID 仍可显式使用。`all` 也可搜索待核实和自定义内容；默认不会把它们当作专业术语抽取。冷暖严格按标签筛选，专业配色概念不一定预设冷暖，候选不足不跨类别补齐。
 
 ## 输出与错误
 

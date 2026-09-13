@@ -17,10 +17,15 @@ export function listLibraries(state) {
   const present = new Set(state.keywords.filter(k => k.dimension !== 'feature').map(k => k.id));
   const builtIn = (id, name, description, matches) => ({ id, name, description, builtIn: true,
     keywordIds: state.keywords.filter(k => k.dimension !== 'feature' && matches(k)).map(k => k.id) });
-  return [
+  const legacy = [
     builtIn('all', '全部常规词库', '包含前八维全部词条；特色使用独立全局词池。', () => true),
     builtIn('foundation', '基础与混合', '涵盖多种设计方向的通用词汇，适合跨风格探索。', k => membership.foundation.includes(k.id)),
     ...themes.map(theme => builtIn(theme.id, theme.name, theme.description, k => membership[theme.id].includes(k.id))),
+  ];
+  return [
+    builtIn('established', '已有术语', '有具体参考出处的专业概念；前端应用建议由 FormLex 整理。', k => k.origin === 'established'),
+    builtIn('original', '原创灵感', 'FormLex 编排的设计方案；借用的基础概念与材料并非声称由 FormLex 发明。', k => k.origin === 'original'),
+    ...legacy.map(library => ({ ...library, legacy: true })),
     ...(state.libraries ?? []).map(library => ({ ...library, builtIn: false, keywordIds: library.keywordIds.filter(id => present.has(id)) })),
   ];
 }

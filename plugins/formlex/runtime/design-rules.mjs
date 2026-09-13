@@ -1,5 +1,5 @@
 // Shared by the browser prompt composer and the generated Codex Skill.
-export const rulesVersion = '1.6.1';
+export const rulesVersion = '1.7.0';
 export const reconstructionLevels = [
   { id: 'polish', name: '局部打磨', summary: '保留整体结构，调整指定区域', rule: '保留整体结构，改进用户指定区域的字阶、间距、配色和状态，不擅自扩大修改范围。' },
   { id: 'visual', name: '视觉重做', summary: '保留内容组织，重做视觉系统', rule: '保留内容组织，重新设计字体、配色、组件形态、材质和动效，形成完整的视觉变化。' },

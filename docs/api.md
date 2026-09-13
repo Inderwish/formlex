@@ -20,6 +20,8 @@
 
 维度 ID 为 `style`、`color`、`layout`、`type`、`shape`、`material`、`motion`、`interaction`，以及可选的 `feature`（特色）。特色元数据为 `optional: true`、`defaultEnabled: false`、`scope: "global"`；catalog 的 `featurePool` 返回 `{ "source": "global", "dimension": "feature", "count": 150 }`，其中数量随词条编辑实时变化。常规词库的 `keywordIds` 不包含特色。
 
+词条增加只读元数据：`origin` 为 established / original / unverified / custom，`classificationReason` 说明依据，`references` 保存机构、标题和具体 URL。`description` 是唯一的完整正文。用户改写名称或说明后使用当前内容并解除内置资料关联；仅改互斥或色温不解除关联。[资料与迁移说明](terminology.md)
+
 ## 抽取
 
 在 pwsh 中直接调用：
@@ -34,16 +36,16 @@ curl.exe --json '{"dimensions":["style","color","material"],"mode":"coordinated"
 
 ```json
 {
-  "libraryId": "all",
+  "libraryId": "established",
   "dimensions": ["style", "color", "material"],
   "mode": "coordinated",
   "countPerDimension": "random",
-  "locked": { "style": ["style-02", "style-24"] },
-  "current": { "style": ["style-02", "style-24"], "color": ["color-03", "color-21"], "material": ["material-07", "material-44"] }
+  "locked": { "style": ["style-04", "style-24"] },
+  "current": { "style": ["style-04", "style-24"], "color": ["color-03", "color-21"], "material": ["material-07", "material-44"] }
 }
 ```
 
-- `libraryId` 默认为 `all`。也可指定 `foundation`、主题 ID 或个人词库 ID；通过 `GET /api/libraries` 获取。指定词库后，前八维只从其候选范围抽取；特色始终使用独立全局词池，即使个人词库为空也可仅抽特色。若提供 `libraryId`，它仍须是有效 ID。
+- `libraryId` 默认为 `established`（已有术语），可选择 `original`（原创灵感）或个人词库 ID。旧 `all`、`foundation` 及十个主题 ID 仍兼容解析，通过 `GET /api/libraries` 获取时带有 `legacy: true`；新推荐入口过滤该标记。指定词库后，前八维只从其候选范围抽取；特色始终使用独立全局词池，即使个人词库为空也可仅抽特色。若提供 `libraryId`，它仍须是有效 ID。
 - `dimensions` 省略时仍为原八维，不会自动添加特色；可显式添加 `feature` 或只传 `["feature"]`。至少一维、最多九维，不可重复。HTTP 和 MCP 不会自动调整维度；个人词库只包含部分维度时应显式指定对应维度。
 - `mode` 为 `coordinated`（默认）或 `free`。
 - `countPerDimension` 默认为 `2`；可指定整数 `1`、`2`、`3`、`4`、`5`，或显式选择 `"random"`（每个未锁定维度各随机 2 或 3 条）。字符串数字、小数和范围外数量返回 `400`。

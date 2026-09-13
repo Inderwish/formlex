@@ -1,6 +1,8 @@
 import { extraEntries } from './seed-extra.mjs';
 import { temperatureById, paletteAdditions } from './seed-palette.mjs';
 import { featureKeywords } from './seed-features.mjs';
+import { termNotes } from './term-references.mjs';
+import classification from './term-classification.json' with { type: 'json' };
 
 export const dimensions = [
   { id: 'style', name: '风格', en: 'STYLE' },
@@ -454,7 +456,7 @@ const additions = {
 };
 for (const d of defaultDimensions) entries[d.id].push(...additions[d.id]);
 for (const d of defaultDimensions) entries[d.id].push(...(extraEntries[d.id] ?? []));
-export const seedRevision = 4;
+export const seedRevision = 5;
 
 const previousKeywords = defaultDimensions.flatMap(d => entries[d.id].map(([name, description], i) => ({
   id: `${d.id}-${String(i + 1).padStart(2, '0')}`, dimension: d.id, name, description, conflicts: [],
@@ -501,4 +503,16 @@ for (const name of multiHueNames) {
 for (const [left, right] of expansionConflicts) {
   const entry = keywords.find(k => k.id === left);
   if (!entry.conflicts.includes(right)) entry.conflicts.push(right);
+}
+
+// 保留升级前的精确正文，迁移只更新没有被用户改写的内置词条。
+export const previousSeed = structuredClone(keywords);
+for (const keyword of keywords) {
+  const note = termNotes[keyword.id];
+  keyword.origin = note ? 'established' : classification.original.includes(keyword.id) ? 'original' : 'unverified';
+  keyword.classificationReason = classification.basis[keyword.origin];
+  keyword.references = note ? structuredClone(note.references) : [];
+  if (note) keyword.description = keyword.dimension === 'color'
+    ? `${note.definition}建议：${note.application}`
+    : `概念：${note.definition}\n前端应用（FormLex）：${note.application}`;
 }

@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync, unlinkSync, copyFileSync, constants } from 'node:fs';
 import { dirname } from 'node:path';
-import { dimensions, defaultDimensions, keywords as seed, seedRevision, seedIntroduced, expansionConflicts } from './seed.mjs';
+import { dimensions, defaultDimensions, keywords as seed, previousSeed, seedRevision, seedIntroduced, expansionConflicts } from './seed.mjs';
 import { listLibraries } from './libraries.mjs';
 
 export class AppError extends Error {
@@ -16,6 +16,14 @@ export const colorTemperatures = ['random', 'cool', 'warm'];
 const temperatureNames = { random: '随机（不限冷暖）', cool: '冷色调', warm: '暖色调' };
 export const conflicts = (a, b) => a.conflicts.includes(b.id) || b.conflicts.includes(a.id);
 const clone = value => structuredClone(value);
+const seedById = new Map(seed.map(k => [k.id, k]));
+const sameContent = (a, b) => b && a.dimension === b.dimension && a.name === b.name && a.description === b.description;
+function provenance(keyword) {
+  const source = seedById.get(keyword.id);
+  return sameContent(keyword, source)
+    ? { origin: source.origin, classificationReason: source.classificationReason, references: clone(source.references) }
+    : { origin: 'custom', classificationReason: '用户新增或改写的内容，未套用内置专业资料。', references: [] };
+}
 
 export function validateKeyword(value, all, id) {
   if (!object(value)) bad('词条必须为 JSON 对象。');
@@ -26,8 +34,9 @@ export function validateKeyword(value, all, id) {
   if (!Array.isArray(value.conflicts) || new Set(value.conflicts).size !== value.conflicts.length) bad('互斥词条必须为不重复的 ID 数组。');
   if (value.conflicts.some(other => other === id || !all.some(k => k.id === other))) bad('互斥关系包含自身或失效词条，请重新加载词库。');
   if (value.temperature !== undefined && !temperatures.includes(value.temperature)) bad('色温分类必须为 cool、warm、neutral、mixed 或 unspecified。');
-  return { id, dimension: value.dimension, name: value.name.trim(), description: value.description.trim(), conflicts: [...value.conflicts],
+  const keyword = { id, dimension: value.dimension, name: value.name.trim(), description: value.description.trim(), conflicts: [...value.conflicts],
     ...(value.dimension === 'color' ? { temperature: value.temperature ?? 'unspecified' } : {}) };
+  return { ...keyword, ...provenance(keyword) };
 }
 
 function validateSnapshot(record) {
@@ -97,7 +106,7 @@ export function upgradeState(previous) {
     next.keywords.push(clone(keyword)); present.add(keyword.id);
   }
   const byId = new Map(next.keywords.map(k => [k.id, k]));
-  const original = new Map(seed.map(k => [k.id, k]));
+  const original = new Map(previousSeed.map(k => [k.id, k]));
   for (const keyword of next.keywords) if (keyword.dimension === 'color' && keyword.temperature === undefined) {
     const source = original.get(keyword.id);
     keyword.temperature = source?.dimension === 'color' && keyword.name === source.name && keyword.description === source.description ? source.temperature : 'unspecified';
@@ -107,7 +116,12 @@ export function upgradeState(previous) {
     if (Math.max(2, seedIntroduced[left] ?? 1, seedIntroduced[right] ?? 1) <= previousRevision) continue;
     const a = byId.get(left); const b = byId.get(right);
     // Keep custom text and its chosen constraints; extend rules only for unchanged seed terms.
-    if (a && b && [a, b].every(k => k.name === original.get(k.id)?.name && k.description === original.get(k.id)?.description) && !a.conflicts.includes(right)) a.conflicts.push(right);
+    if (a && b && [a, b].every(k => sameContent(k, original.get(k.id)) || sameContent(k, seedById.get(k.id))) && !a.conflicts.includes(right)) a.conflicts.push(right);
+  }
+  for (const keyword of next.keywords) {
+    // Preserve user constraints and temperature; only untouched builtin prose is upgraded.
+    if (sameContent(keyword, original.get(keyword.id))) keyword.description = seedById.get(keyword.id).description;
+    Object.assign(keyword, provenance(keyword));
   }
   next.version = 2; next.seedRevision = seedRevision;
   validateState(next); return next;
@@ -160,7 +174,7 @@ export function draw(all, input, maxNodes = 50000, libraries = []) {
   if (!Array.isArray(selected) || !selected.length || selected.length > dimensionIds.length || selected.some(d => !dimensionIds.includes(d)) || new Set(selected).size !== selected.length) bad(`请选择 1–${dimensionIds.length} 个不重复的有效维度。`);
   if (!['coordinated', 'free'].includes(mode)) bad('模式必须为 coordinated 或 free。');
   if (!['random', 1, 2, 3, 4, 5].includes(countPerDimension)) bad('countPerDimension 必须为 random 或 1–5 的整数。');
-  const libraryId = input.libraryId === undefined ? 'all' : input.libraryId;
+  const libraryId = input.libraryId === undefined ? 'established' : input.libraryId;
   if (typeof libraryId !== 'string') bad('libraryId 必须是词库 ID 字符串。');
   const library = listLibraries({ keywords: all, libraries }).find(l => l.id === libraryId);
   if (!library) bad('所选词库已失效，请重新加载词库。');

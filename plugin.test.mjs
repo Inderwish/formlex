@@ -74,7 +74,7 @@ test('插件生成一致、清单资源与 marketplace 路径完整，没有用�
   const files = inventory(pluginRoot);
   assert.deepEqual(Object.keys(files).filter(path => /(^|\/)(data|history|favorites|cache|node_modules|\.git)(\/|\.)/.test(path)), []);
   const manifest = JSON.parse(readFileSync(join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(manifest.name, 'formlex'); assert.equal(manifest.version, '1.6.1');
+  assert.equal(manifest.name, 'formlex'); assert.equal(manifest.version, '1.7.0');
   for (const field of ['mcpServers', 'apps', 'hooks']) assert.equal(Object.hasOwn(manifest, field), false);
   assert.equal(existsSync(join(pluginRoot, '.mcp.json')), false);
   for (const path of [manifest.skills, manifest.interface.logo, manifest.interface.composerIcon, ...manifest.interface.screenshots]) {
@@ -107,7 +107,7 @@ test('builtin 调用不使用网络，查询只返回摘要或指定分页', asy
   try {
     const list = await runCli(['libraries']);
     assert.equal(list.source, 'builtin'); assert.equal(list.historySaved, false);
-    assert.equal(list.result.libraries[0].count, 1274); assert.equal(list.result.featurePool.count, 150);
+    assert.equal(list.result.libraries[0].count, keywords.filter(k => k.origin === 'established' && k.dimension !== 'feature').length); assert.equal(list.result.featurePool.count, 150);
     assert.equal(list.result.keywords, undefined);
     assert.deepEqual(list.result, librarySummary(createCatalog({ keywords })));
     assert.ok((await runCli(['draw'])).result.items.length >= 16);
@@ -127,8 +127,8 @@ test('隔离插件：默认八维、所有主题范围与严格冷暖、特色�
   for (const a of initial.result.items) for (const b of initial.result.items) if (a.id !== b.id) assert.equal(conflicts(a, b), false);
   const libraries = (await cli('libraries')).result.libraries;
   const catalog = createCatalog({ keywords });
-  for (const library of libraries.filter(l => !['all', 'foundation'].includes(l.id))) {
-    assert.ok(library.temperatureCounts.cool >= 5); assert.ok(library.temperatureCounts.warm >= 5);
+  assert.deepEqual(libraries.map(l => l.id), ['established', 'original']);
+  for (const library of catalog.libraries.filter(l => l.legacy && !['all', 'foundation'].includes(l.id))) {
     for (const colorTemperature of ['cool', 'warm']) {
       const result = await cli('draw', { libraryId: library.id, dimensions: ['color'], countPerDimension: 5, colorTemperature, mode: 'free' });
       assert.equal(result.error, undefined);
@@ -158,13 +158,13 @@ test('隔离插件：锁定、单维重抽、显式冲突、无效参数及 UTF-
   assert.deepEqual(next.items.filter(k => k.dimension !== 'color'), first.items.filter(k => k.dimension !== 'color'));
   assert.ok(grouped(next).color.every(id => !current.color.includes(id)));
   const cool = keywords.find(k => k.dimension === 'color' && k.temperature === 'cool');
-  assert.equal((await cli('draw', { dimensions: ['color', 'shape'], colorTemperature: 'warm', locked: { color: [cool.id] } })).error.code, 'LOCK_TEMPERATURE_CONFLICT');
+  assert.equal((await cli('draw', { libraryId: 'all', dimensions: ['color', 'shape'], colorTemperature: 'warm', locked: { color: [cool.id] } })).error.code, 'LOCK_TEMPERATURE_CONFLICT');
   const a = keywords.find(k => k.conflicts.length && k.dimension !== 'feature');
   const b = keywords.find(k => k.id === a.conflicts[0]);
   const locked = grouped({ items: [a, b] });
   const dimensions = [...new Set([a.dimension, b.dimension, 'feature'])];
-  assert.equal((await cli('draw', { dimensions, locked })).error.code, 'LOCK_CONFLICT');
-  assert.ok((await cli('draw', { dimensions, locked, mode: 'free' })).result);
+  assert.equal((await cli('draw', { libraryId: 'all', dimensions, locked })).error.code, 'LOCK_CONFLICT');
+  assert.ok((await cli('draw', { libraryId: 'all', dimensions, locked, mode: 'free' })).result);
   for (const input of [{ foo: 1 }, { countPerDimension: 6 }, { featureCount: 0 }, { colorTemperature: 'neutral' }, { current: { style: ['deleted-id'] } }, []]) assert.equal((await cli('draw', input)).error.code, 'INVALID_INPUT');
   assert.equal((await cli('libraries', { query: 'x' })).error.code, 'INVALID_INPUT');
   assert.equal((await cli('search', { dimension: 'feature', temperature: 'cool' })).error.code, 'INVALID_INPUT');
@@ -174,7 +174,7 @@ test('隔离插件：锁定、单维重抽、显式冲突、无效参数及 UTF-
     writeFileSync(inputFile, invalid);
     assert.equal((await runCli(['draw', '--input', inputFile])).error.code, 'INVALID_INPUT');
   }
-  writeFileSync(inputFile, '\ufeff' + JSON.stringify({ query: '哥特', limit: 2 }), 'utf8');
+  writeFileSync(inputFile, '\ufeff' + JSON.stringify({ libraryId: 'all', query: '哥特', limit: 2 }), 'utf8');
   assert.ok((await runCli(['search', '--input', inputFile])).result.total > 0);
 });
 

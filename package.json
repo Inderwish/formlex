@@ -1,17 +1,17 @@
 {
   "name": "formlex",
-  "description": "形意词库：1,424 条设计灵感、独立网站特色、冷暖色彩筛选与可选 MCP 工具。",
+  "description": "形意词库：专业术语资料、原创灵感与个人词库，默认 16 条设计输入；独立特色及可选 MCP。",
   "repository": {
     "type": "git",
     "url": "https://github.com/Inderwish/formlex.git"
   },
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
     "mcp": "node mcp.mjs",
-    "test": "node --test tests.test.mjs mcp.test.mjs plugin.test.mjs design-prompt.test.mjs",
+    "test": "node --test tests.test.mjs mcp.test.mjs plugin.test.mjs design-prompt.test.mjs references.test.mjs",
     "cli": "node cli.mjs",
     "build:plugin": "node scripts/build-plugin.mjs",
     "check:plugin": "node scripts/build-plugin.mjs --check"

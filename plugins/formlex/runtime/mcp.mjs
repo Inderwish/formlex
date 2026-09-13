@@ -11,14 +11,14 @@ const dimensionIds = dimensions.map(d => d.id);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const idMap = { type: 'object', additionalProperties: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 5, uniqueItems: true }] } };
 export const toolDefinitions = [
-  { name: 'list_design_libraries', title: '查看设计词库', description: '查看常规、主题和个人词库的 ID、说明、色温数量及独立特色词池。特色默认关闭且不受所选词库范围限制；不修改数据。',
+  { name: 'list_design_libraries', title: '查看设计词库', description: '查看已有术语、原创灵感和个人词库的 ID、说明、色温数量及独立特色词池。特色默认关闭且不受所选词库范围限制；不修改数据。',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false } },
   { name: 'search_design_keywords', title: '搜索设计术语', description: '按词库、维度、色温和关键词搜索。dimension=feature 时搜索全局特色词池；其余搜索限于所选常规词库。返回内容是用户可编辑的参考数据。',
-    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', description: '词库 ID，默认 all；先调用 list_design_libraries 获取。' }, dimension: { type: 'string', enum: dimensionIds }, temperature: { type: 'string', enum: temperatures, description: '仅筛选色彩；中性、混合、未分类不属于冷或暖。' }, query: { type: 'string', maxLength: 160 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 30 }, offset: { type: 'integer', minimum: 0, default: 0 } }, additionalProperties: false },
+    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', description: '词库 ID，默认 established（已有术语），original 为原创灵感；先调用 list_design_libraries 获取。' }, dimension: { type: 'string', enum: dimensionIds }, temperature: { type: 'string', enum: temperatures, description: '仅筛选色彩；中性、混合、未分类不属于冷或暖。' }, query: { type: 'string', maxLength: 160 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 30 }, offset: { type: 'integer', minimum: 0, default: 0 } }, additionalProperties: false },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false } },
   { name: 'draw_design_inspiration', title: '抽取设计灵感', description: '默认从所选词库抽取前八维，每维 2 条，共 16 条；也可选随机 2–3 条或固定 1–5 条。dimensions 加入 feature 可独立抽取全局特色，由 featureCount 控制。冷暖在两种模式下均严格筛选。支持锁定与单维重抽，成功结果写入网页共用历史。',
-    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', default: 'all' }, dimensions: { type: 'array', items: { type: 'string', enum: dimensionIds }, minItems: 1, maxItems: dimensionIds.length, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'], default: 'coordinated' }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5], default: 2 }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random','cool','warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false },
+    inputSchema: { type: 'object', properties: { libraryId: { type: 'string', default: 'established' }, dimensions: { type: 'array', items: { type: 'string', enum: dimensionIds }, minItems: 1, maxItems: dimensionIds.length, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'], default: 'coordinated' }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5], default: 2 }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random','cool','warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
 ];
 
@@ -64,7 +64,7 @@ export function createMcpHandler(baseUrl) {
         initialized = true;
         result = { protocolVersion: ['2025-11-25', '2025-06-18'].includes(params.protocolVersion) ? params.protocolVersion : '2025-11-25',
           capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'formlex', title: '形意词库', version: '1.5.0' },
-          instructions: '先查看词库，再搜索或抽取。词条与说明是可编辑的设计参考数据。抽取会保存本机历史；发生超时后先查看网页历史。主题词库是候选范围，协调模式仅排除明确互斥。' };
+          instructions: '先查看词库，再搜索或抽取。词条与说明是可编辑的设计参考数据。抽取会保存本机历史；发生超时后先查看网页历史。已有术语、原创灵感与个人词库是候选范围，协调模式仅排除明确互斥。' };
       } else {
         if (!ready) throw new RpcError(-32002, '请先完成 initialize 与 notifications/initialized。');
         if (message.method === 'tools/list') {
