@@ -83,7 +83,7 @@ node runtime/cli.mjs draw --input draw.json
 
 查询与抽取中的词条均返回同一份完整 `description`，以及 `origin`、`classificationReason`、`references`。资料不需要额外查询命令；来源元数据只用于核查。[字段与归类说明](terminology.md)
 
-旧 `all`、`foundation` 及十个主题 ID 仍可显式使用。`all` 也可搜索待核实和自定义内容；默认不会把它们当作专业术语抽取。冷暖严格按标签筛选，专业配色概念不一定预设冷暖，候选不足不跨类别补齐。
+旧 `all`、`foundation` 及十个主题 ID 仍可显式使用。`all` 也可搜索自定义内容；默认不会把它们当作专业术语抽取。冷暖严格按标签筛选，专业配色概念不一定预设冷暖，候选不足不跨类别补齐。
 
 ## 输出与错误
 
@@ -104,3 +104,20 @@ node runtime/cli.mjs draw --input draw.json
 无效参数 `INVALID_INPUT`；锁定色温冲突 `LOCK_TEMPERATURE_CONFLICT`；范围冲突 `LOCK_OUTSIDE_LIBRARY`；锁定互斥 `LOCK_CONFLICT`；候选不足 `INSUFFICIENT_CANDIDATES`；空维度 `EMPTY_DIMENSION`；组合不存在 `NO_COMBINATION`；搜索上限 `SEARCH_LIMIT`。达到上限只表示本次没有找到结果，不代表组合一定不存在。不自动改条件或模式。
 
 工作台连接/响应异常为 `SERVICE_UNAVAILABLE`，取消/超时为 `REQUEST_INTERRUPTED`，API 不兼容为 `SERVICE_VERSION`。提交抽取后若响应中断，`historySaved=null` 表示保存状态未知；先查看工作台历史，避免盲目重试。明确保存失败不会返回成功记录。旧快照和用户数据格式保持原样，CLI 不触发离线数据迁移。
+
+## 各维度选择不同词库
+
+`draw` 的 JSON 参数可加入 `dimensionLibraries`，例如：
+
+```json
+{
+  "libraryId": "established",
+  "dimensions": ["style", "color", "layout", "feature"],
+  "dimensionLibraries": {"style": "established", "color": "original", "layout": "original"},
+  "countPerDimension": 2,
+  "colorTemperature": "cool",
+  "featureCount": 1
+}
+```
+
+未覆盖的维度沿用 `libraryId`，特色始终全局独立。个人词库 ID 可用于 workspace 数据源；builtin 无法访问本机个人数据，失效 ID 会明确报错。映射键只接受已启用的常规维度。锁定、候选不足和互斥规则按组合后的实际范围检查，不跨库补齐。响应的 `dimensionLibraries` 保存每维度来源 ID 和名称；完整设计提示词仍不附带来源元数据。

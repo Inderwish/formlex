@@ -52,7 +52,7 @@ try {
     [System.IO.Compression.ZipFile]::ExtractToDirectory($stagedZip, $extracted)
     $extractedPlugin = Join-Path $extracted 'formlex'
     if (-not (Test-Path -LiteralPath (Join-Path $extractedPlugin '.codex-plugin/plugin.json'))) { throw '压缩包缺少插件清单。' }
-    Invoke-NodeChecked -NodeArguments @('--test', 'tests.test.mjs', 'mcp.test.mjs', 'plugin.test.mjs', 'design-prompt.test.mjs', 'references.test.mjs') -ExtractedPlugin $extractedPlugin
+    Invoke-NodeChecked -NodeArguments @('--test', 'tests.test.mjs', 'mcp.test.mjs', 'plugin.test.mjs', 'design-prompt.test.mjs', 'references.test.mjs', 'dimension-libraries.test.mjs') -ExtractedPlugin $extractedPlugin
     $destinationParent = [System.IO.Path]::GetDirectoryName($archivePath)
     [void][System.IO.Directory]::CreateDirectory($destinationParent)
     Copy-Item -LiteralPath $stagedZip -Destination $archivePath -Force

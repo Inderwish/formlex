@@ -1,49 +1,50 @@
 # 专业术语资料与归类
 
-FormLex 1.7.0 保留全部 1,424 条词条。取样入口按资料性质区分，八个常规设计维度保持原样，默认每维 2 条。
+FormLex 1.8.0 保留全部 1,424 条词条。取样入口按资料性质区分，八个常规设计维度保持原样，默认每维 2 条。
 
 | 范围 | 内置数量 | 使用方式 |
 | --- | ---: | --- |
-| 已有术语 established | 115 | 已整理具体参考页与正文，默认推荐范围 |
-| 原创灵感 original（常规） | 853 | FormLex 编排的界面方案，保留原说明 |
-| 待核实 unverified | 306 | 保留原内容，可在管理页检索或加入自选；不冒充已查证术语 |
+| 已有术语 established | 419 | 已整理具体参考页与正文，默认推荐范围 |
+| 原创灵感 original（常规） | 855 | FormLex 编排的界面方案，保留原说明 |
 | 独立特色 | 150 | 默认关闭；开启后独立取 1–5 条，不受常规分类限制 |
 
-“原创灵感”指 FormLex 编排的前端应用方案，不意味着其中的颜色、材料或基础构图由 FormLex 发明。专业概念尚未完成资料核查时保留为待核实；不是找不到出处就自动算原创。后续用户新增或改写的词条属于 custom，以用户当前说明为准。
+“原创灵感”指 FormLex 编排的前端应用方案，不意味着其中的颜色、材料或基础构图由 FormLex 发明。内置资料核查已完成，不再留有待核实项。“宋式雅正”和“上下文替换排印”经用户确认保留原文，按实际含义归入原创灵感；具体依据见[核查表](terminology-audit.md)。这不是因找不到出处就自动算原创。后续用户新增或改写的词条属于 custom，以用户当前说明为准。
 
 ## 资料如何组织
 
 每条已整理术语包含核心含义、识别特征、前端应用和容易误用的边界。正文按需要展开，通常约 100–150 字，复杂概念可写至约 200 字；色彩说明为 30–50 字。正文中“概念”概述参考资料支持的内容，“前端应用（FormLex）”是面向界面的转译与建议；短配色中的“建议”同样由 FormLex 整理。不是机构对前端实现的背书。
 
-出处使用具体资料页，记录机构、标题和 URL。例如：[MoMA 的新艺术资料](https://www.moma.org/collection/terms/art-nouveau-new-art)、[大都会艺术博物馆的蚀刻技法](https://www.metmuseum.org/perspectives/materials-and-techniques-printmaking-etching)、[W3C 的中文行首行尾禁则](https://www.w3.org/TR/clreq/#prohibition_rules_for_line_start_end)、[MDN 的可变字体说明](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Fonts/Variable_fonts)。来源以博物馆、大学、标准及实现方文档为主。资料页用于核查概念，不复制整篇文章，不下载参考图。
+出处使用具体资料页，记录机构、标题和 URL。例如：[MoMA 的新艺术资料](https://www.moma.org/collection/terms/?filter=A)、[大都会艺术博物馆的蚀刻技法](https://www.metmuseum.org/perspectives/materials-and-techniques-printmaking-etching)、[W3C 的中文行首行尾禁则](https://www.w3.org/TR/clreq/#prohibition_rules_for_line_start_end)、[MDN 的可变字体说明](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Fonts/Variable_fonts)。来源以博物馆、大学、标准及实现方文档为主。资料页用于核查概念，不复制整篇文章，不下载参考图。
 
 单一维护来源是 `term-references.mjs` 中的概念概述、应用建议、来源清单，与 `term-classification.json` 中经人工审阅的 ID 清单。`seed.mjs` 将其组成唯一 `description`，构建流程把相同文件复制进插件的 runtime 目录。不会按名称猜测出处，也不按加入时间划分专业与原创。保留旧 ID，因此旧词库里的同义条目仍存在。
 
 ## 网页、提示词与工具
 
+每个常规维度可独立选择已有术语、原创灵感或个人词库。顶部默认来源仅用于未覆盖的维度；候选不足或锁定不在该维度词库时报告原因，不跨库补齐。特色来源保持全局独立。
+
 点击展板词条，在阅读区查看完整正文与出处；词库管理和历史快照详情也可展开资料。历史只展示记录当时附带的资料，缺少出处的旧快照不会被改写。
 
 完整提示词直接包含所有词条正文和共同执行规则。无需安装插件，无需再调用插件查资料；参考链接不默认复制。“纯词条”与“原始 JSON”是辅助输出，前者也保留正文。完整提示词省略内部 ID、抽取来源和数量统计，但保留有效权重、所有必选要求、内容重要性、主导性与逐词核查。
 
-重构强度可选，未选就没有对应栏目或规则；“必须保留”独立生效。任务、权重与这些编排设置只存在页面内存，刷新清空，不写入历史和收藏。记录页复制使用全部普通和无任务补充。
+重构强度可选，未选就没有对应栏目或规则；选中只复制对应执行指令，不附选项定义及控件说明；“必须保留”独立生效。任务、权重与这些编排设置只存在页面内存，刷新清空，不写入历史和收藏。记录页复制使用全部普通和无任务补充。
 
 API v4、CLI 和 MCP 的抽取及搜索入口不变，词条增加以下只读元数据：
 
 | 字段 | 含义 |
 | --- | --- |
-| `origin` | established / original / unverified / custom |
+| `origin` | established / original / custom；旧快照兼容 unverified |
 | `classificationReason` | 分类依据与资料边界 |
 | `references` | `{ institution, title, url }` 数组；无核实出处时为空 |
 | `description` | 唯一完整正文，不重复拼接旧短说明 |
 
 这些元数据不能通过词条写接口伪造。更新名称、维度或正文后不再套用内置专业资料；仅调整互斥关系或色温可保留原资料关联。使用同名自定义词条不会自动取得已有术语身份。
 
-`libraries` 推荐列表只列 established、original 和个人词库。兼容范围 `all`、`foundation`、classical、eastern、rational、playful、raw、organic、digital、craft、cinematic、experimental 仍可显式用于抽取与搜索；catalog 与 HTTP 词库列表对它们标记 `legacy: true`。`all` 可以检索全部常规内容，包括待核实和自定义词条。
+`libraries` 推荐列表只列 established、original 和个人词库。兼容范围 `all`、`foundation`、classical、eastern、rational、playful、raw、organic、digital、craft、cinematic、experimental 仍可显式用于抽取与搜索；catalog 与 HTTP 词库列表对它们标记 `legacy: true`。`all` 可以检索全部常规内容，包括自定义词条。
 
 色温只按现存人工分类筛选，不从名称推断。专业配色概念往往不规定冷暖，选定冷暖后可能没有足够候选；工具会报出数量不足，绝不跨分类补词。可自行修改条件或将所需配色纳入个人词库。
 
 ## 升级与个人数据
 
-种子版本为 5，用户数据结构仍为 version 2，HTTP API 仍为 v4。迁移前生成 `.before-v5.bak`。对内置词条同时比较旧版名称、维度和说明，仅未改写的正文更新；色温、互斥、个人组合、历史、收藏及删除记录保持。种子版本标记防止重启恢复删除项。保存失败会保留原文件并报告错误。
+种子版本为 6，用户数据结构仍为 version 2，HTTP API 仍为 v4。迁移前生成 `.before-v6.bak`。对内置词条同时比较旧版名称、维度和说明，识别 v4 原始短说明及 v5 专业正文，仅未改写的正文更新；色温、互斥、个人组合、历史、收藏及删除记录保持。种子版本标记防止重启恢复删除项。保存失败会保留原文件并报告错误。
 
 浏览器保存的旧主题或全部范围会切换为已有术语并显示提示，当前结果保持；显式更换范围后提示收起。特色开关与独立数量不随范围改变。

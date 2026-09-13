@@ -50,3 +50,4 @@ dialog{padding:26px;border:1px solid #809fb9;border-radius:2px;width:min(710px,c
 .term-sources{margin-top:10px}.term-sources summary{cursor:pointer;color:#315995;font-size:12px;padding:6px 0}
 #reader-description,.library-row p,.viewfinder[data-framing=focus] .keyword-term p{white-space:pre-line}
 #reader-references{margin-top:12px}
+.dimension-options{grid-template-columns:1fr;gap:8px}.dimension-source-row{min-width:0}.dimension-source-row select{width:100%;min-width:0;max-width:100%;font-size:12px;min-height:36px}.dimension-source-row .dimension-choice{padding:5px 2px}.dimensions-field>.control-caption{margin:0 0 10px}.dimensions-field>#reset-dimension-libraries{margin-top:10px;width:100%;font-size:11px}

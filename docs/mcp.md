@@ -38,9 +38,9 @@ node server.mjs
 | --- | --- |
 | `list_design_libraries` | 无参数；返回内置与个人词库的 ID、名称、说明、常规总数、每维度候选数量、色温分类数量 `temperatureCounts` 及独立的 `featurePool`。 |
 | `search_design_keywords` | 按 `libraryId`、`dimension`、`temperature`、`query` 搜索；`limit` 默认 30，范围 1–100，`offset` 默认 0。返回术语、说明、总数及 `nextOffset`。 |
-| `draw_design_inspiration` | 接受 `libraryId`、`dimensions`、`mode`、`countPerDimension`、`featureCount`、`colorTemperature`、`locked`、`current`，成功后保存历史。 |
+| `draw_design_inspiration` | 接受 `libraryId`、`dimensionLibraries`、`dimensions`、`mode`、`countPerDimension`、`featureCount`、`colorTemperature`、`locked`、`current`，成功后保存历史。 |
 
-抽取参数与 [HTTP API](api.md) 一致，默认使用已有术语（`established`）、原八个维度、协调模式，每维度 2 条，共 16 条。显式选择 `random` 可恢复每维随机 2–3 条。`countPerDimension` 可设为整数 1–5，锁定维度仍保留原数量；`locked` 与 `current` 的每维度 ID 数组最多 5 项。已有术语、原创灵感及个人词库控制前八维的候选范围；协调模式只排除显式互斥。
+抽取参数与 [HTTP API](api.md) 一致，默认使用已有术语（`established`）、原八个维度、协调模式，每维度 2 条，共 16 条。显式选择 `random` 可恢复每维随机 2–3 条。`countPerDimension` 可设为整数 1–5，锁定维度仍保留原数量；`locked` 与 `current` 的每维度 ID 数组最多 5 项。`dimensionLibraries` 可分别给常规维度指定不同来源，例如 `{"style":"established","color":"original"}`；未覆盖的维度沿用 `libraryId`。只接受启用的常规维度，特色不能指定来源。已有术语、原创灵感及个人词库控制相应维度的候选范围；协调模式只排除显式互斥。
 
 显式在 `dimensions` 加入 `feature` 可开启特色，也可以只传 `["feature"]`。它始终从独立全局词池抽取，数量由 `featureCount` 控制（整数 1–5，默认 1），不受 `countPerDimension` 或所选词库范围影响。`colorTemperature` 支持 `random`、`cool`、`warm`，默认随机；自由与协调模式都严格遵守冷暖标签，候选不足或锁定色彩不符时保留条件并返回原因。
 

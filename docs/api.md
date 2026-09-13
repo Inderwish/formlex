@@ -45,7 +45,8 @@ curl.exe --json '{"dimensions":["style","color","material"],"mode":"coordinated"
 }
 ```
 
-- `libraryId` 默认为 `established`（已有术语），可选择 `original`（原创灵感）或个人词库 ID。旧 `all`、`foundation` 及十个主题 ID 仍兼容解析，通过 `GET /api/libraries` 获取时带有 `legacy: true`；新推荐入口过滤该标记。指定词库后，前八维只从其候选范围抽取；特色始终使用独立全局词池，即使个人词库为空也可仅抽特色。若提供 `libraryId`，它仍须是有效 ID。
+- `libraryId` 默认为 `established`（已有术语），可选择 `original`（原创灵感）或个人词库 ID。旧 `all`、`foundation` 及十个主题 ID 仍兼容解析，通过 `GET /api/libraries` 获取时带有 `legacy: true`；新推荐入口过滤该标记。未单独覆盖的维度从该词库抽取；特色始终使用独立全局词池，即使个人词库为空也可仅抽特色。若提供 `libraryId`，它仍须是有效 ID。
+- `dimensionLibraries` 可选，形如 `{"style":"established","color":"original","layout":"个人词库 ID"}`，覆盖各常规维度的 `libraryId`。仅接受已启用维度，不能指定 `feature`。空对象沿用默认来源；无效、失效词库或未启用维度返回 `400`。锁定项按各维度自己的词库校验，候选不足不跨库补齐。响应的同名字段保存每维度 `{id,name}` 来源快照，旧快照缺少该字段时使用 `library`。
 - `dimensions` 省略时仍为原八维，不会自动添加特色；可显式添加 `feature` 或只传 `["feature"]`。至少一维、最多九维，不可重复。HTTP 和 MCP 不会自动调整维度；个人词库只包含部分维度时应显式指定对应维度。
 - `mode` 为 `coordinated`（默认）或 `free`。
 - `countPerDimension` 默认为 `2`；可指定整数 `1`、`2`、`3`、`4`、`5`，或显式选择 `"random"`（每个未锁定维度各随机 2 或 3 条）。字符串数字、小数和范围外数量返回 `400`。
@@ -53,7 +54,7 @@ curl.exe --json '{"dimensions":["style","color","material"],"mode":"coordinated"
 - `colorTemperature` 为 `random`（默认）、`cool` 或 `warm`。随机不限分类，冷暖仅允许 `temperature` 完全相符的色彩词条，在两种模式下都生效，不影响其余维度。
 - `locked` 为必须保留的「维度 ID → 词条 ID 数组」，默认空；锁定维度的词条数量与顺序原样保留，不受新的数量设置影响。至少有一维未锁定。
 - `current` 同样采用「维度 ID → 词条 ID 数组」，用于尽量避开上一组词条，默认空。每组 1–5 个不重复 ID；两种映射也接受单个 ID 字符串。
-- 两个映射中的维度必须已启用，词条必须存在且属于对应维度。常规锁定词条必须在所选词库中，否则返回 `409 LOCK_OUTSIDE_LIBRARY`；特色锁定不受主题或个人词库限制。冷暖筛选与锁定色彩不符返回 `409 LOCK_TEMPERATURE_CONFLICT`；当前结果可来自另一份词库，用于尽量避免重复。先从 catalog 或前次抽取获取 ID。
+- 两个映射中的维度必须已启用，词条必须存在且属于对应维度。常规锁定词条必须在该维度所选词库中，否则返回 `409 LOCK_OUTSIDE_LIBRARY`；特色锁定不受主题或个人词库限制。冷暖筛选与锁定色彩不符返回 `409 LOCK_TEMPERATURE_CONFLICT`；当前结果可来自另一份词库，用于尽量避免重复。先从 catalog 或前次抽取获取 ID。
 - **只重抽一维**：仍传入原来的所有维度，将其余维度全部放入 `locked`，并通过 `current` 传入当前结果。
 - 请求不继承网页设置，每次调用显式传参。响应成功后才计入历史。
 

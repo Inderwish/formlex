@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { once } from 'node:events';
 import { createApp } from './server.mjs';
 import { atomicWrite } from './core.mjs';
-import { buildDesignPrompt, buildKeywordText } from './public/design-rules.mjs';
+import { buildDesignPrompt, buildKeywordText, reconstructionLevels } from './public/design-rules.mjs';
 import { listLibraries } from './libraries.mjs';
 
 // Optional browser regression check: uses a test environment's Playwright and Edge.
@@ -161,6 +161,7 @@ test('冷蓝工作台：阅读、编排、检视、色迹与原有操作', { tim
     await page.keyboard.press('Escape');await page.locator('[data-view="records"]').click();await page.locator('[data-detail="old-record"]').click();await page.locator('#record-dialog').waitFor();assert.match(await page.locator('#record-detail').textContent(),/克制现代主义/);await page.keyboard.press('Escape');
     await page.locator('[data-view="draw"]').click();await page.locator('[data-library-category="original"]').click();await page.locator('[data-count="2"]').click();current=await draw();
     fail=true;await page.locator('#draw-button').click();await page.locator('#draw-error').waitFor();assert.deepEqual(await record(),current);fail=false;
+    for(const d of dimensions.filter(d=>d.id!=='feature')) await page.locator(`#dimension-options input[value="${d.id}"]`).check();
     await draw();await page.locator('[data-dimension-priority="material"]').selectOption('dominant');await page.locator('[data-dimension-priority="feature"]').selectOption('emphasis');
     await page.locator('#brief-task').fill('构建离线掌机菜单。全部线索都要实际落地，材质主导视觉，特色重点表现；支持键盘操作。');
     await page.locator('#format-prompt').click();await page.locator('.surface-settings summary').click();
@@ -195,5 +196,52 @@ test('冷蓝工作台：阅读、编排、检视、色迹与原有操作', { tim
   } finally {
     await browser?.close();await new Promise(resolve=>{app.server.close(resolve);app.server.closeAllConnections();});rmSync(directory,{recursive:true,force:true,maxRetries:3});
   }
+});
+test('逐维词库选择记忆与覆盖、失效提示；复制强度仅含执行指令', {timeout:35000,skip:!chromium}, async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'formlex-scope-ui-'));
+  const app=createApp({dataFile:join(directory,'state.json')});let browser;
+  app.store.transact(s=>s.libraries.push({id:'one',name:'仅一个风格',keywordIds:['style-21']}));
+  app.server.listen(0,'127.0.0.1');await once(app.server,'listening');
+  try {
+    browser=await chromium.launch({channel:'msedge',headless:true,timeout:15000});
+    const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});page.setDefaultTimeout(5000);
+    await page.addInitScript(()=>{Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.copied=text;}}});});
+    await page.goto(`http://127.0.0.1:${app.server.address().port}`,{timeout:10000});await page.locator('.result-card').first().waitFor();
+    assert.equal(await page.locator('[data-dimension-library]').count(),8);
+    const prior=structuredClone(app.store.state.history[0]);
+    await page.locator('[data-dimension-library="layout"]').selectOption('original');
+    await page.locator('[data-dimension-library="style"]').selectOption('established');
+    await page.locator('[data-library-category="original"]').click();
+    assert.deepEqual(app.store.state.history[0],prior);
+    assert.equal(await page.locator('[data-dimension-library="style"]').inputValue(),'established');
+    await page.locator('#draw-button').click();await page.waitForFunction(()=>document.querySelector('#result-meta').textContent.includes('按维度混合词库'));
+    const mixed=app.store.state.history[0];
+    assert.ok(mixed.items.filter(k=>k.dimension==='style').every(k=>k.origin==='established'));
+    assert.ok(mixed.items.filter(k=>k.dimension==='layout').every(k=>k.origin==='original'));
+    assert.match(await page.locator('.result-card[data-dimension="style"] .category-caption').textContent(),/已有术语/);
+    for(const level of reconstructionLevels){
+      await page.locator(`[data-reconstruction="${level.id}"]`).click();await page.locator('#copy-text').click();
+      const prompt=await page.evaluate(()=>window.copied);
+      assert.ok(prompt.includes(level.rule));assert.doesNotMatch(prompt,/重构强度是可选|每档强度|用户已经选择|## 重构强度/);
+      for(const other of reconstructionLevels.filter(l=>l.id!==level.id)) assert.ok(!prompt.includes(other.rule));
+    }
+    if(process.env.FORMLEX_PREVIEWS==='1'){
+      await page.setViewportSize({width:390,height:1000});
+      await page.locator('.brief-scope').screenshot({path:resolve('preview/reconstruction-mobile.png')});
+      await page.setViewportSize({width:1440,height:1000});
+    }
+    await page.locator('#reconstruction-clear').click();await page.locator('#copy-text').click();assert.ok(!(await page.evaluate(()=>window.copied)).includes('## 执行范围'));
+    await page.locator('#brief-preserve').fill('保留错误正文');await page.locator('#copy-text').click();assert.match(await page.evaluate(()=>window.copied),/必须保留：保留错误正文/);
+    await page.locator('[data-dimension-library="style"]').selectOption('one');await page.locator('#draw-button').click();await page.locator('#draw-error').waitFor();
+    assert.match(await page.locator('#draw-error').textContent(),/只有 1 条候选/);assert.deepEqual(app.store.state.history[0],mixed);
+    await page.reload({timeout:10000});await page.locator('#draw-error').waitFor();
+    assert.equal(await page.locator('[data-dimension-library="style"]').inputValue(),'one');assert.equal(await page.locator('#brief-preserve').inputValue(),'');
+    app.store.transact(s=>{s.libraries=[];});await page.reload({timeout:10000});await page.locator('#draw-error').waitFor();
+    assert.match(await page.locator('[data-dimension-library="style"]').textContent(),/词库已失效/);
+    await page.setViewportSize({width:320,height:900});if(!await page.locator('#controls-drawer').evaluate(n=>n.open)) await page.locator('#controls-drawer>summary').click();
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.locator('[data-dimension-library="layout"]').focus();assert.equal(await page.locator('[data-dimension-library="layout"]').evaluate(n=>n===document.activeElement),true);
+    await page.locator('#reset-dimension-libraries').click();assert.ok((await page.locator('[data-dimension-library]').evaluateAll(ns=>ns.map(n=>n.value))).every(v=>v===''));
+  } finally {await browser?.close();await new Promise(resolve=>{app.server.close(resolve);app.server.closeAllConnections();});rmSync(directory,{recursive:true,force:true,maxRetries:3});}
 });
 process.on('exit',code=>{if(code===0)console.log('DONE');});

@@ -5,13 +5,13 @@
     "type": "git",
     "url": "https://github.com/Inderwish/formlex.git"
   },
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
     "mcp": "node mcp.mjs",
-    "test": "node --test tests.test.mjs mcp.test.mjs plugin.test.mjs design-prompt.test.mjs references.test.mjs",
+    "test": "node --test tests.test.mjs mcp.test.mjs plugin.test.mjs design-prompt.test.mjs references.test.mjs dimension-libraries.test.mjs",
     "cli": "node cli.mjs",
     "build:plugin": "node scripts/build-plugin.mjs",
     "check:plugin": "node scripts/build-plugin.mjs --check"

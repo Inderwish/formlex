@@ -41,7 +41,7 @@
       </div>
       <div class="workspace">
         <details id="controls-drawer" class="settings-desk" open><summary><span><b>01</b> 抽取参数</span><span class="drawer-symbol" aria-hidden="true">＋</span></summary><div class="desk-body">
-        <section class="source-panel" aria-label="选择抽取词库"><div><span class="eyebrow">FORMLEX LIBRARY</span><strong>从哪一份词库取样</strong></div><div id="library-categories" class="segmented" role="group" aria-label="词库分类"><button type="button" data-library-category="established" aria-pressed="true">已有术语</button><button type="button" data-library-category="original" aria-pressed="false">原创灵感</button><button type="button" data-library-category="personal" aria-pressed="false">自选词库</button></div><label id="personal-library-field" hidden>个人组合<select id="draw-library" aria-describedby="pool-summary"><option value="established">已有术语</option></select></label><button id="manage-libraries" class="button" type="button"><span data-icon="sliders"></span>管理自选</button><p id="pool-summary" class="control-caption" role="status">正在读取词库…</p><p id="scope-notice" class="control-caption" role="status" hidden></p></section>
+        <section class="source-panel" aria-label="选择抽取词库"><div><span class="eyebrow">FORMLEX LIBRARY</span><strong>默认抽取词库</strong></div><div id="library-categories" class="segmented" role="group" aria-label="词库分类"><button type="button" data-library-category="established" aria-pressed="true">已有术语</button><button type="button" data-library-category="original" aria-pressed="false">原创灵感</button><button type="button" data-library-category="personal" aria-pressed="false">自选词库</button></div><label id="personal-library-field" hidden>个人组合<select id="draw-library" aria-describedby="pool-summary"><option value="established">已有术语</option></select></label><button id="manage-libraries" class="button" type="button"><span data-icon="sliders"></span>管理自选</button><p id="pool-summary" class="control-caption" role="status">正在读取词库…</p><p id="scope-notice" class="control-caption" role="status" hidden></p></section>
         <aside class="config-panel" aria-label="抽取设置">
           <div class="panel-title"><p class="eyebrow">SAMPLING DESK</p><h2>构成参数</h2><span class="small-index">选定范围，再让灵感相遇。</span></div>
           <fieldset class="mode-field"><legend>组合方式</legend>
@@ -50,7 +50,7 @@
           </fieldset>
           <fieldset class="count-setting"><legend>常规维度词条数</legend><div id="draw-count" class="segmented" role="group" aria-label="每维度词条数"><button type="button" data-count="1" aria-pressed="false">1 条</button><button type="button" data-count="2" aria-pressed="true">2 条</button><button type="button" data-count="3" aria-pressed="false">3 条</button><button type="button" data-count="4" aria-pressed="false">4 条</button><button type="button" data-count="5" aria-pressed="false">5 条</button><button type="button" data-count="random" aria-label="随机 2–3 条" aria-pressed="false">2–3</button></div><p class="control-caption" id="count-caption">锁定组保持原来的词条数</p></fieldset>
 
-          <fieldset class="dimensions-field"><legend>取样范围 <span id="selected-count">8 / 8</span></legend><div id="dimension-options" class="dimension-options"></div></fieldset>
+          <fieldset class="dimensions-field"><legend>各维度词库 <span id="selected-count">8 / 8</span></legend><p class="control-caption">各维度独立选择来源，数字为当前色温下的候选数。修改后下次抽取生效，保留已有结果与锁定。</p><div id="dimension-options" class="dimension-options"></div><button id="reset-dimension-libraries" class="button" type="button">全部恢复跟随默认</button></fieldset>
         </aside>
         <section class="creative-options" aria-label="色彩与网站特色">
           <fieldset class="temperature-setting"><legend>色彩倾向</legend><div id="color-temperature" class="segmented" role="group" aria-label="色彩温度"><button type="button" data-temperature="random" aria-pressed="true">随机</button><button type="button" data-temperature="cool" aria-pressed="false">冷色调</button><button type="button" data-temperature="warm" aria-pressed="false">暖色调</button></div><p class="control-caption">只筛选色彩维度 · 中性与混合配色仅参与随机</p></fieldset>
@@ -88,7 +88,7 @@
   </main>
   <dialog id="collection-dialog" aria-labelledby="collection-title">
     <form id="collection-form"><div class="dialog-header"><div><p class="eyebrow">CURATE YOUR VOCABULARY</p><h2 id="collection-title">自选词库</h2></div><button class="icon-button" type="button" data-close="collection-dialog" aria-label="关闭自选词库"><span data-icon="close"></span></button></div>
-      <p class="muted">可混选已有术语、原创灵感、待核实及自定义词条，保存多个个人组合。网站特色从完整特色池独立抽取，不加入个人词库。</p>
+      <p class="muted">可混选已有术语、原创灵感及自定义词条，保存多个个人组合。网站特色从完整特色池独立抽取，不加入个人词库。</p>
       <div id="collection-error" class="error-banner" role="alert" hidden></div>
       <div class="form-row"><label>编辑个人词库<select id="collection-edit-select"><option value="">新建个人词库</option></select></label><label>词库名称<input id="collection-name" maxlength="60" required placeholder="例如：我的建筑感工作台"></label></div>
       <div id="collection-counts" class="collection-counts" role="status"></div>

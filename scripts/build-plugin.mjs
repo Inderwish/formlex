@@ -8,12 +8,13 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 export const pluginRoot = join(root, 'plugins', 'formlex');
 export const generatedFiles = [
   ...['cli.mjs', 'catalog.mjs', 'workspace.mjs', 'mcp.mjs', 'core.mjs', 'libraries.mjs',
-    'seed.mjs', 'seed-extra.mjs', 'seed-palette.mjs', 'seed-features.mjs', 'seed-membership.json', 'term-references.mjs', 'term-classification.json']
+    'seed.mjs', 'seed-extra.mjs', 'seed-palette.mjs', 'seed-features.mjs', 'seed-membership.json', 'seed-v5-prose.json', 'term-references.mjs', 'term-classification.json']
     .map(file => [file, `runtime/${file}`]),
   ['public/favicon.svg', 'assets/icon.svg'],
   ['preview/desktop.png', 'assets/workbench.png'],
   ['docs/cli.md', 'docs/cli.md'],
   ['docs/terminology.md', 'docs/terminology.md'],
+  ['docs/terminology-audit.md', 'docs/terminology-audit.md'],
   ['public/design-rules.mjs', 'runtime/design-rules.mjs'],
 ];
 

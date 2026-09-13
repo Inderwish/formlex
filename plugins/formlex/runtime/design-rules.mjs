@@ -1,10 +1,10 @@
 // Shared by the browser prompt composer and the generated Codex Skill.
-export const rulesVersion = '1.7.0';
+export const rulesVersion = '1.8.0';
 export const reconstructionLevels = [
   { id: 'polish', name: '局部打磨', summary: '保留整体结构，调整指定区域', rule: '保留整体结构，改进用户指定区域的字阶、间距、配色和状态，不擅自扩大修改范围。' },
   { id: 'visual', name: '视觉重做', summary: '保留内容组织，重做视觉系统', rule: '保留内容组织，重新设计字体、配色、组件形态、材质和动效，形成完整的视觉变化。' },
-  { id: 'structure', name: '结构重构', summary: '重组信息、导航与页面布局', rule: '重新设计信息分组、主辅关系、导航呈现、阅读路径和页面布局，需要可辨识的结构变化。' },
-  { id: 'redesign', name: '重新设计', summary: '从功能需求重新构建界面', rule: '以现有页面提供的功能和内容为依据，从任务与设计词条重新构建界面；不默认沿用原有页面骨架或组件组合。' },
+  { id: 'structure', name: '结构重构', summary: '重组信息、导航与页面布局', rule: '重新设计信息分组、主辅关系、导航呈现、阅读路径和页面布局，再安排视觉细节。保留功能、内容含义和用户明确的约束；已有布局与组件组合不自动保留。对照原页面验证结构变化，仅换色、换字体或增加装饰不算完成。' },
+  { id: 'redesign', name: '重新设计', summary: '从功能需求重新构建界面', rule: '以现有页面提供的功能和内容为依据，从任务与设计词条重新构建界面。先确定新的内容组织、阅读路径和页面骨架，再设计视觉系统；不默认沿用原有布局、侧栏或组件组合。保留功能能力、数据含义及用户明确的品牌、技术和界面约束。对照原页面验证整体设计变化，仅换色、换字体或增加装饰不算完成。' },
 ];
 export const reconstructionRules = [
   '重构强度是可选设置，由用户决定。用户已经选择时按对应范围直接执行，不重复确认或降低已选强度；未选择时按原始任务与明确约束执行，不强制选择档位，也不额外套用强度要求。',
@@ -70,7 +70,7 @@ export function buildKeywordText(record, dimensions) {
 }
 export function buildDesignPrompt(record, dimensions, draft = {}) {
   const level = reconstructionLevels.find(level => level.id === draft.reconstruction);
-  const scope = level ? `\n\n## 重构强度\n\n${level.name}\n${level.rule}\n\n${reconstructionRules}` : '';
+  const scope = level ? `\n\n## 执行范围\n\n${level.rule}` : '';
   const preserve = draft.preserve?.trim() ? `\n\n必须保留：${draft.preserve.trim()}` : '';
   const terms = orderedGroups(record, dimensions, draft).map(group => `## ${group.name} · ${priority(group.priority).name}\n\n` + group.items.map(k => `• ${k.name}（${priority(effectivePriority(k, draft)).name}）\n${k.description}`).join('\n\n')).join('\n\n');
   return `## 任务与硬约束\n\n${draft.task?.trim() || '结合本次对话中用户提供的页面任务与硬约束执行；任务尚不明确时，先向用户澄清必要信息。'}${preserve}${scope}\n\n## 权重与全部必选原则\n\n${requirements}\n\n${terms}\n\n## 设计与实现规则\n\n${implementation}\n\n## 冲突必须询问\n\n${conflictRules}\n\n## 逐词验收\n\n${verification}`;

@@ -103,8 +103,11 @@ test('四档强度只展开所选规则；未选或清除不复制强度，保�
   for (const level of reconstructionLevels) {
     const draft = { reconstruction: level.id, preserve, dimensionPriorities: { material: 'dominant' } };
     const text = buildDesignPrompt(record, dimensions, draft);
-    assert.ok(text.includes(`## 重构强度\n\n${level.name}\n${level.rule}`));
-    assert.ok(text.includes(reconstructionRules));
+    assert.ok(text.includes(`## 执行范围\n\n${level.rule}`));
+    assert.ok(!text.includes(reconstructionRules));
+    assert.ok(!text.includes('重构强度是可选设置'));
+    assert.ok(!text.includes('每档强度'));
+    assert.ok(!text.includes(`\n${level.name}\n`));
     assert.ok(text.includes(preserve));
     assert.ok(text.includes('液态金属（主导）'));
     for (const other of reconstructionLevels.filter(other => other.id !== level.id)) assert.ok(!text.includes(other.rule));
@@ -112,6 +115,7 @@ test('四档强度只展开所选规则；未选或清除不复制强度，保�
   }
   const empty = buildDesignPrompt(record, dimensions);
   assert.ok(!empty.includes('重构强度'));
+  assert.ok(!empty.includes('## 执行范围'));
   assert.ok(!empty.includes(reconstructionRules));
   assert.ok(!empty.includes('必须保留：'));
   assert.ok(!empty.includes(preserve));

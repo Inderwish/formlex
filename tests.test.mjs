@@ -197,8 +197,8 @@ test('旧数据一次性升级：保留改词、删词、收藏历史，备份�
   const original = JSON.stringify({version:1,keywords:oldKeywords,history:[oldRecord],favorites:[oldRecord]});
   writeFileSync(file,original,'utf8');
   const store = openStore(file);
-  assert.equal(store.state.version,2); assert.equal(store.state.seedRevision,5); assert.equal(store.state.keywords.length,1424);
-  assert.equal(readFileSync(file+'.before-v5.bak','utf8'),original);
+  assert.equal(store.state.version,2); assert.equal(store.state.seedRevision,6); assert.equal(store.state.keywords.length,1424);
+  assert.equal(readFileSync(file+'.before-v6.bak','utf8'),original);
   assert.ok(!store.state.keywords.some(k => k.id === 'style-02'));
   assert.ok(store.state.keywords.find(k => k.id === 'color-01').conflicts.includes('color-21'), '旧词条对新版带资料词条的新增互斥仍需迁入');
   for (const field of ['name','description','conflicts','dimension']) assert.deepEqual(store.state.keywords.find(k => k.id === 'style-01')[field], edited[field]);
@@ -209,7 +209,7 @@ test('旧数据一次性升级：保留改词、删词、收藏历史，备份�
   assert.ok(!again.state.keywords.some(k => k.id === 'color-50'));
   assert.equal(again.state.keywords.find(k => k.id === 'style-50').name,'新增术语也可自行修改');
   assert.equal(again.state.history.length,2); assert.deepEqual(again.state.favorites,[oldRecord]);
-  assert.equal(readFileSync(file+'.before-v5.bak','utf8'),original);
+  assert.equal(readFileSync(file+'.before-v6.bak','utf8'),original);
 });
 
 test('升级写入失败不覆盖原数据', t => {
@@ -217,7 +217,7 @@ test('升级写入失败不覆盖原数据', t => {
   writeFileSync(file,original,'utf8');
   assert.throws(() => openStore(file, () => { throw Error('模拟磁盘错误'); }), /原数据已保留/);
   assert.equal(readFileSync(file,'utf8'),original);
-  assert.equal(readFileSync(file+'.before-v5.bak','utf8'),original);
+  assert.equal(readFileSync(file+'.before-v6.bak','utf8'),original);
 });
 
 test('主题词库分配完整且每维度术语不重名，全部新增说明独立完整', () => {
@@ -276,8 +276,8 @@ test('400 条词库升级保留改删、手工约束、记录与个人词库，�
   const original = JSON.stringify({ version: 2, seedRevision: 2, keywords: old, libraries: [{ id: 'my-library', name: '我的选择', keywordIds: ['my-private-word','style-50'] }], history: [record], favorites: [record] });
   writeFileSync(file, original, 'utf8');
   const store = openStore(file);
-  assert.equal(store.state.keywords.length, 1424); assert.equal(store.state.seedRevision, 5);
-  assert.equal(readFileSync(file + '.before-v5.bak', 'utf8'), original);
+  assert.equal(store.state.keywords.length, 1424); assert.equal(store.state.seedRevision,6);
+  assert.equal(readFileSync(file + '.before-v6.bak', 'utf8'), original);
   assert.ok(!store.state.keywords.some(k => k.id === 'color-21'));
   assert.equal(store.state.keywords.find(k => k.id === 'style-50').name, '我的个人修改');
   assert.ok(!store.state.keywords.find(k => k.id === 'motion-01').conflicts.includes('motion-02'));
@@ -286,7 +286,7 @@ test('400 条词库升级保留改删、手工约束、记录与个人词库，�
   const reopened = openStore(file);
   assert.ok(!reopened.state.keywords.some(k => ['style-51','my-private-word'].includes(k.id)));
   assert.deepEqual(reopened.state.libraries[0].keywordIds, ['style-50']);
-  assert.equal(readFileSync(file + '.before-v5.bak', 'utf8'), original);
+  assert.equal(readFileSync(file + '.before-v6.bak', 'utf8'), original);
 });
 
 test('个人词库 HTTP 编辑与抽取共享历史，重启保存，删除词条清理引用', { timeout: 20000 }, async t => {
@@ -420,8 +420,8 @@ test('1200 词条迁移只补新 ID 与未改写色彩分类，旧快照与个�
   const original=JSON.stringify({version:2,seedRevision:3,keywords:old,libraries:[library],history:[snapshot],favorites:[snapshot]});
   writeFileSync(file,original,'utf8');
   const store=openStore(file);
-  assert.equal(store.state.keywords.length,1424);assert.equal(store.state.seedRevision,5);
-  assert.equal(readFileSync(file+'.before-v5.bak','utf8'),original);
+  assert.equal(store.state.keywords.length,1424);assert.equal(store.state.seedRevision,6);
+  assert.equal(readFileSync(file+'.before-v6.bak','utf8'),original);
   for(const id of ['color-03','color-06','private-color','style-01'])assert.equal(store.state.keywords.find(k=>k.id===id).temperature,'unspecified');
   assert.equal(store.state.keywords.find(k=>k.id==='color-08').temperature,'warm');
   assert.equal(store.state.keywords.find(k=>k.id==='color-01').temperature,keywords.find(k=>k.id==='color-01').temperature);

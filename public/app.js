@@ -22,7 +22,7 @@ const paths = {
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] ?? paths.grid}</svg>`;
 $$('[data-icon]').forEach(node => { node.innerHTML = icon(node.dataset.icon); });
 
-const state = { catalog: { dimensions: [], keywords: [], libraries: [] }, selected: [], libraryId: 'established', libraryLimit: 80, collectionLimit: 80, collectionSelection: new Set(), collectionBusy: false, mode: 'coordinated', countPerDimension: 2, locked: {}, result: null,
+const state = { catalog: { dimensions: [], keywords: [], libraries: [] }, selected: [], libraryId: 'established', dimensionLibraries: {}, libraryLimit: 80, collectionLimit: 80, collectionSelection: new Set(), collectionBusy: false, mode: 'coordinated', countPerDimension: 2, locked: {}, result: null,
   history: [], favorites: [], view: 'draw', recordKind: 'favorites', format: 'prompt', busy: false, featureCount: 1, colorTemperature: 'random',
   brief: { task: '', reconstruction: '', preserve: '', dimensionPriorities: {}, keywordPriorities: {} },
   editing: null, conflictSelection: new Set(), detail: null, framing: 'overview', focusDimension: 'style', spacing: 'balanced', measuring: false,
@@ -42,6 +42,11 @@ $('#reconstruction-options').innerHTML = reconstructionLevels.map(level => `<but
 const modeName = mode => mode === 'coordinated' ? '协调模式' : '自由模式';
 const temperatureName = value => ({ random: '随机（不限冷暖）', cool: '冷色调', warm: '暖色调', neutral: '中性', mixed: '混合', unspecified: '未分类' })[value ?? 'unspecified'];
 const regularDimensions = () => state.catalog.dimensions.filter(d => d.id !== 'feature');
+const libraryFor = dimension => state.dimensionLibraries[dimension] ?? state.libraryId;
+const snapshotLibrary = (record, dimension) => dimension === 'feature' ? { id: 'global', name: '独立特色池' } : record.dimensionLibraries?.[dimension] ?? record.library ?? { id: 'all', name: '全部词库' };
+function rememberLibraries() {
+  try { localStorage.setItem('formlex.dimensionLibraries', JSON.stringify(state.dimensionLibraries)); } catch { /* Memory selection remains usable. */ }
+}
 function rememberOptions() {
   try { for (const [key, value] of Object.entries({ featureEnabled: state.selected.includes('feature'), featureCount: state.featureCount, colorTemperature: state.colorTemperature })) localStorage.setItem(`formlex.${key}`, String(value)); }
   catch { /* Selections still work without local storage. */ }
@@ -93,7 +98,7 @@ function referenceHTML(keyword) {
   return `<div class="reference-info"><span class="origin-label">${originNames[keyword.origin] ?? '旧版快照 · 未附资料'}</span><p>${escape(keyword.classificationReason ?? '保留记录当时的说明，不套用新版资料。')}</p>${links.length ? `<p>概念定义参考以下资料；前端应用与误用建议由 FormLex 整理。参考链接不进入完整提示词。</p><ul>${links.map(ref => `<li><a href="${escape(ref.url)}" target="_blank" rel="noopener noreferrer">${escape(ref.institution)} · ${escape(ref.title)} ↗</a></li>`).join('')}</ul>` : ''}</div>`;
 }
 function libraryOptions() {
-  return '<option value="all">全部常规词条（含待核实与自定义）</option>' + state.catalog.libraries.filter(l => !l.legacy).map(l => `<option value="${l.id}">${escape(l.name)} · ${l.keywordIds.length} 条</option>`).join('') + '<option value="unverified">待核实</option><option value="custom">用户自定义</option>';
+  return '<option value="all">全部常规词条（含自定义）</option>' + state.catalog.libraries.filter(l => !l.legacy).map(l => `<option value="${l.id}">${escape(l.name)} · ${l.keywordIds.length} 条</option>`).join('') + (state.catalog.keywords.some(k => k.origin === 'unverified') ? '<option value="unverified">旧版未核实资料</option>' : '') + '<option value="custom">用户自定义</option>';
 }
 function renderLibraryChoices() {
   const current = state.catalog.libraries.find(l => l.id === state.libraryId);
@@ -115,23 +120,20 @@ function renderLibraryChoices() {
   renderDimensions();
 }
 function renderDimensions() {
-  const pool = poolKeywords();
   const library = state.catalog.libraries.find(l => l.id === state.libraryId);
-  $('#pool-summary').textContent = `${pool.length} 条常规候选 · ${library?.description ?? '只从你挑选的词条中组合灵感。'}`;
+  $('#pool-summary').textContent = `默认：${library?.name ?? '词库已失效'}。下方可逐维度覆盖；切换默认词库只影响跟随项。`;
   $('#feature-pool-count').textContent = `${state.catalog.featurePool?.count ?? 0} 条独立候选 · 不受常规分类或个人词库限制`;
   $('#dimension-options').innerHTML = regularDimensions().map(d => {
-    const count = pool.filter(k => k.dimension === d.id && (d.id !== 'color' || state.colorTemperature === 'random' || k.temperature === state.colorTemperature)).length;
-    return `<label class="dimension-choice" title="${d.name}有 ${count} 条候选"><input type="checkbox" value="${d.id}" ${state.selected.includes(d.id) ? 'checked' : ''}><span>${d.name}</span><small>${count}</small></label>`;
+    const count = poolKeywords(libraryFor(d.id)).filter(k => k.dimension === d.id && (d.id !== 'color' || state.colorTemperature === 'random' || k.temperature === state.colorTemperature)).length;
+    const options = state.catalog.libraries.filter(l => !l.legacy || l.id === state.dimensionLibraries[d.id]);
+    const missing = state.dimensionLibraries[d.id] && !options.some(l => l.id === state.dimensionLibraries[d.id]);
+    return `<div class="dimension-source-row"><label class="dimension-choice" title="${d.name}有 ${count} 条候选"><input type="checkbox" value="${d.id}" ${state.selected.includes(d.id) ? 'checked' : ''}><span>${d.name}</span><small>${count} 候选</small></label><select data-dimension-library="${d.id}" aria-label="${d.name}抽取词库"><option value="">跟随默认 · ${escape(library?.name ?? '已失效')}</option>${options.map(l => `<option value="${escape(l.id)}" ${state.dimensionLibraries[d.id] === l.id ? 'selected' : ''}>${l.builtIn ? '' : '自选 · '}${escape(l.name)}</option>`).join('')}${missing ? `<option value="${escape(state.dimensionLibraries[d.id])}" selected>词库已失效 · 请重新选择</option>` : ''}</select></div>`;
   }).join('');
 }
 function applyLibrary(id, keepNotice = false) {
   if (!state.catalog.libraries.some(l => l.id === id)) throw Error('所选词库已失效，请刷新词库。');
   if (!keepNotice) $('#scope-notice').hidden = true;
   state.libraryId = id;
-  const available = new Set(poolKeywords().map(k => k.dimension));
-  const featureEnabled = state.selected.includes('feature');
-  state.selected = regularDimensions().filter(d => available.has(d.id) || state.locked[d.id]).map(d => d.id);
-  if (featureEnabled) state.selected.push('feature');
   try { localStorage.setItem('formlex.libraryId', id); } catch { /* Saving the library itself is handled by the server. */ }
   renderLibraryChoices(); renderDraw();
 }
@@ -195,7 +197,7 @@ function updateDrawControls() {
   $('#draw-button').disabled = state.busy || !state.selected.length || lockedCount === state.selected.length;
   $('#draw-button-label').textContent = state.busy ? '正在组合…' : lockedCount ? '重抽未锁定维度' : '抽取一组灵感';
   $('#lock-hint').textContent = !state.selected.length ? '至少选择一个维度' : lockedCount === state.selected.length ? '全部已锁定，解锁后可继续抽取' : lockedCount ? `锁定 ${lockedCount} 个维度 · 保留整组词条` : state.countPerDimension === 'random' ? '常规维度随机 2–3 条' : `常规维度抽取 ${state.countPerDimension} 条`;
-  $$('#dimension-options input, input[name="mode"], #draw-count button, #draw-library, #library-categories button, #manage-libraries, #feature-enabled').forEach(input => { input.disabled = state.busy; });
+  $$('#dimension-options input, #dimension-options select, #reset-dimension-libraries, input[name="mode"], #draw-count button, #draw-library, #library-categories button, #manage-libraries, #feature-enabled').forEach(input => { input.disabled = state.busy; });
   $$('#draw-count button').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.count === String(state.countPerDimension))); });
   $('#count-caption').textContent = state.countPerDimension === 'random' ? '各维度独立随机' : '锁定组保持原来的词条数';
   $$('[data-reroll], [data-lock]').forEach(button => { button.disabled = state.busy || state.inspecting || !state.selected.includes(button.dataset.reroll ?? button.dataset.lock) || (button.hasAttribute('data-reroll') && Boolean(state.locked[button.dataset.reroll])); });
@@ -206,7 +208,7 @@ function updateDrawControls() {
     if (fixed) return [fixed, fixed];
     if (d === 'feature') return [state.featureCount, state.featureCount];
     if (state.countPerDimension !== 'random') return [state.countPerDimension, state.countPerDimension];
-    const available = poolKeywords().filter(k => k.dimension === d && (d !== 'color' || state.colorTemperature === 'random' || k.temperature === state.colorTemperature)).length;
+    const available = poolKeywords(libraryFor(d)).filter(k => k.dimension === d && (d !== 'color' || state.colorTemperature === 'random' || k.temperature === state.colorTemperature)).length;
     return [2, available >= 3 ? 3 : 2];
   });
   const low = bounds.reduce((n,p) => n + p[0], 0), high = bounds.reduce((n,p) => n + p[1], 0);
@@ -220,7 +222,9 @@ function updateDrawControls() {
   if (state.result) {
     const count = groups(state.result.items).length;
     const sameDimensions = count === state.selected.length && state.result.items.every(k => state.selected.includes(k.dimension));
-    $('#result-meta').textContent = state.libraryId !== (state.result.library?.id ?? 'all') || state.mode !== state.result.mode || !sameDimensions || (state.result.countPerDimension ?? 1) !== state.countPerDimension || (state.result.colorTemperature ?? 'random') !== state.colorTemperature || (state.result.featureCount ?? 1) !== state.featureCount ? '设置已更改 · 下次抽取生效' : `${state.result.library?.name ?? '全部词库'} · ${modeName(state.result.mode)} · ${state.result.items.length} 条`;
+    const sameLibraries = state.selected.filter(d => d !== 'feature').every(d => libraryFor(d) === snapshotLibrary(state.result, d).id);
+    const mixed = new Set(state.result.items.filter(k => k.dimension !== 'feature').map(k => snapshotLibrary(state.result, k.dimension).id)).size > 1;
+    $('#result-meta').textContent = !sameLibraries || state.mode !== state.result.mode || !sameDimensions || (state.result.countPerDimension ?? 1) !== state.countPerDimension || (state.result.colorTemperature ?? 'random') !== state.colorTemperature || (state.result.featureCount ?? 1) !== state.featureCount ? '设置已更改 · 下次抽取生效' : `${mixed ? '按维度混合词库' : snapshotLibrary(state.result, state.result.items.find(k => k.dimension !== 'feature')?.dimension ?? 'feature').name} · ${modeName(state.result.mode)} · ${state.result.items.length} 条`;
   }
 }
 function updateFavoriteButton() {
@@ -248,7 +252,7 @@ function renderDraw() {
     $('#result-grid').innerHTML = boardGroups().map((group, position, list) => {
       const locked = Boolean(state.locked[group.id]);
       const index = state.catalog.dimensions.findIndex(d => d.id === group.id) + 1;
-      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索${group.id === 'feature' ? ' · 独立特色池' : ''}</span>${locked ? '<span class="locked-label">已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><label class="dimension-priority-control">整组权重<select data-dimension-priority="${group.id}" aria-label="${group.name}维度权重">${priorityOptions()}</select></label><div class="keyword-stack">${group.items.map((k, i) => `<section class="keyword-term"><button type="button" class="term-slot" data-inspect="${k.id}" aria-pressed="false" aria-label="阅读${escape(k.name)}"><span aria-hidden="true">${String(i + 1).padStart(2,'0')}</span><strong class="term-name">${escape(k.name)}</strong><small aria-hidden="true">↗</small></button><div class="term-priority-control"><span class="effective-priority">生效：普通</span><select data-keyword-priority="${k.id}" aria-label="${escape(k.name)}词条权重"><option value="inherit">跟随维度</option>${priorityOptions()}</select></div><p>${escape(k.description)}</p></section>`).join('')}</div><div class="curation-actions"><button type="button" data-dimension="${group.id}" data-move="-1" ${position === 0 ? 'disabled' : ''} aria-label="前移${group.name}">← 前移</button><button type="button" data-dimension="${group.id}" data-move="1" ${position === list.length - 1 ? 'disabled' : ''} aria-label="后移${group.name}">后移 →</button></div></article>`;
+      return `<article class="result-card ${locked ? 'locked' : ''}" data-dimension="${group.id}"><div class="card-top"><div class="card-category"><span class="category-number">${String(index).padStart(2, '0')}</span><span class="category-name">${group.name}</span><span class="en">${group.en}</span><span class="category-caption"><span class="term-count">${group.items.length} 条线索 · ${escape(snapshotLibrary(state.result, group.id).name)}</span>${locked ? '<span class="locked-label">已锁定</span>' : ''}</span></div><div class="card-actions"><button class="icon-button" type="button" data-lock="${group.id}" aria-pressed="${locked}" aria-label="${locked ? '解锁' : '锁定'}${group.name}" title="${locked ? '解锁' : '锁定'}${group.name}整组词条">${icon(locked ? 'lock' : 'unlock')}</button><button class="icon-button" type="button" data-reroll="${group.id}" aria-label="重抽${group.name}" title="重抽${group.name}整组词条">${icon('refresh')}</button></div></div><label class="dimension-priority-control">整组权重<select data-dimension-priority="${group.id}" aria-label="${group.name}维度权重">${priorityOptions()}</select></label><div class="keyword-stack">${group.items.map((k, i) => `<section class="keyword-term"><button type="button" class="term-slot" data-inspect="${k.id}" aria-pressed="false" aria-label="阅读${escape(k.name)}"><span aria-hidden="true">${String(i + 1).padStart(2,'0')}</span><strong class="term-name">${escape(k.name)}</strong><small aria-hidden="true">↗</small></button><div class="term-priority-control"><span class="effective-priority">生效：普通</span><select data-keyword-priority="${k.id}" aria-label="${escape(k.name)}词条权重"><option value="inherit">跟随维度</option>${priorityOptions()}</select></div><p>${escape(k.description)}</p></section>`).join('')}</div><div class="curation-actions"><button type="button" data-dimension="${group.id}" data-move="-1" ${position === 0 ? 'disabled' : ''} aria-label="前移${group.name}">← 前移</button><button type="button" data-dimension="${group.id}" data-move="1" ${position === list.length - 1 ? 'disabled' : ''} aria-label="后移${group.name}">后移 →</button></div></article>`;
     }).join('');
     $('#dimension-index').innerHTML = boardGroups().map(group => `<button type="button" data-focus="${group.id}" aria-label="聚焦${group.name}" aria-pressed="false"><span>${String(state.catalog.dimensions.findIndex(d => d.id === group.id) + 1).padStart(2, '0')}</span><small>${group.name}</small></button>`).join('');
   }
@@ -316,11 +320,12 @@ function drawInput(target) {
   const current = idsByDimension(valid);
   if (target && (old.length !== valid.length || state.selected.some(d => !current[d]))) throw Error('当前组合包含失效词条或新增维度，请先整组抽取，再进行单项重抽。');
   const locked = target ? Object.fromEntries(Object.entries(current).filter(([dimension]) => dimension !== target)) : { ...state.locked };
-  return { dimensions: [...state.selected], libraryId: state.libraryId, mode: state.mode, countPerDimension: state.countPerDimension, featureCount: state.featureCount, colorTemperature: state.colorTemperature, locked, current };
+  return { dimensions: [...state.selected], libraryId: state.libraryId, dimensionLibraries: Object.fromEntries(Object.entries(state.dimensionLibraries).filter(([d]) => state.selected.includes(d))), mode: state.mode, countPerDimension: state.countPerDimension, featureCount: state.featureCount, colorTemperature: state.colorTemperature, locked, current };
 }
 function acceptDraw(record, input, tool) {
   if (tool) {
     state.libraryId = record.library?.id ?? 'all';
+    state.dimensionLibraries = { ...(input.dimensionLibraries ?? {}) }; rememberLibraries();
     state.selected = [...new Set(record.items.map(k => k.dimension))]; state.mode = record.mode; state.countPerDimension = record.countPerDimension;
     state.featureCount = record.featureCount ?? 1; state.colorTemperature = record.colorTemperature ?? 'random'; rememberOptions();
     state.locked = Object.fromEntries(Object.entries(input.locked ?? {}).map(([d, ids]) => [d, Array.isArray(ids) ? ids : [ids]]));
@@ -419,17 +424,25 @@ function recordById(id) { return [...state.favorites, ...state.history].find(r =
 function openRecord(record) {
   state.detail = record;
   $('#record-title').textContent = `${modeName(record.mode)} · ${groups(record.items).length} 个维度 / ${record.items.length} 条`;
-  $('#record-detail').innerHTML = `<p class="muted">${date(record.createdAt)} · ${escape(record.library?.name ?? '全部词库')}${record.colorTemperature ? ` · 色彩：${temperatureName(record.colorTemperature)}` : ''}${record.featureSource === 'global' ? ` · 独立特色池（数量设置 ${record.featureCount ?? 1} 条）` : ''} · 保存时的内容快照</p><p class="control-caption">复制完整提示词时按全部普通生成，不包含编辑页临时任务或权重。</p>` + groups(record.items).map(group => `<section class="record-detail-item"><span class="dimension-tag">${group.name} · ${group.items.length} 条</span>${group.items.map(k => `<div class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p><details class="term-sources"><summary>资料与出处</summary>${referenceHTML(k)}</details></div>`).join('')}</section>`).join('');
+  $('#record-detail').innerHTML = `<p class="muted">${date(record.createdAt)} · ${escape(record.library?.name ?? '全部词库')}${record.colorTemperature ? ` · 色彩：${temperatureName(record.colorTemperature)}` : ''}${record.featureSource === 'global' ? ` · 独立特色池（数量设置 ${record.featureCount ?? 1} 条）` : ''} · 保存时的内容快照</p><p class="control-caption">复制完整提示词时按全部普通生成，不包含编辑页临时任务或权重。</p>` + groups(record.items).map(group => `<section class="record-detail-item"><span class="dimension-tag">${group.name} · ${group.items.length} 条 · ${escape(snapshotLibrary(record, group.id).name)}</span>${group.items.map(k => `<div class="keyword-term"><h3>${escape(k.name)}</h3><p>${escape(k.description)}</p><details class="term-sources"><summary>资料与出处</summary>${referenceHTML(k)}</details></div>`).join('')}</section>`).join('');
   $('#record-dialog').showModal();
 }
 
 on('.main-nav', 'click', event => { const button = event.target.closest('[data-view]'); if (button) return switchView(button.dataset.view); });
 on('.brand', 'click', event => { event.preventDefault(); return switchView('draw'); });
-on('#dimension-options', 'change', () => {
+on('#dimension-options', 'change', event => {
+  if (event.target.matches('[data-dimension-library]')) {
+    const dimension = event.target.dataset.dimensionLibrary;
+    if (event.target.value) state.dimensionLibraries[dimension] = event.target.value; else delete state.dimensionLibraries[dimension];
+    rememberLibraries(); renderDimensions(); updateDrawControls();
+    $(`[data-dimension-library="${dimension}"]`).focus();
+    return;
+  }
   state.selected = [...$$('#dimension-options input:checked').map(node => node.value), ...(state.selected.includes('feature') ? ['feature'] : [])];
   state.locked = Object.fromEntries(Object.entries(state.locked).filter(([key]) => state.selected.includes(key)));
   renderDraw();
 });
+on('#reset-dimension-libraries', 'click', () => { state.dimensionLibraries = {}; rememberLibraries(); renderDimensions(); updateDrawControls(); });
 on('#feature-enabled', 'change', () => {
   state.selected = state.selected.filter(d => d !== 'feature');
   if ($('#feature-enabled').checked) state.selected.push('feature'); else delete state.locked.feature;
@@ -582,7 +595,7 @@ async function registerBrowserTools() {
   const idMap = { type: 'object', additionalProperties: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 5, uniqueItems: true }] } };
   const definitions = [
     { name: 'read_design_catalog', description: '读取八个常规维度、独立特色池、色温分类及显式互斥关系。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true }, execute: () => api('/api/catalog') },
-    { name: 'draw_design_inspiration', description: '默认抽取八维，每维 2 条，共 16 条；可选每维度 1–5 条或随机 2–3 条。显式添加 feature 从独立池取 featureCount 条。colorTemperature 严格筛选色彩，成功保存到历史并更新网页。锁定整组保留。', inputSchema: { type: 'object', properties: { libraryId: { type: 'string', default: 'established', description: '已有术语 established；原创灵感 original；个人词库 ID。' }, dimensions: { type: 'array', items: { type: 'string', enum: state.catalog.dimensions.map(d => d.id) }, minItems: 1, maxItems: 9, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'] }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5], default: 2 }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random', 'cool', 'warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true }, execute: input => performDraw(input, { tool: true }) },
+    { name: 'draw_design_inspiration', description: '默认抽取八维，每维 2 条，共 16 条；可选每维度 1–5 条或随机 2–3 条。显式添加 feature 从独立池取 featureCount 条。colorTemperature 严格筛选色彩，成功保存到历史并更新网页。锁定整组保留。', inputSchema: { type: 'object', properties: { libraryId: { type: 'string', default: 'established', description: '已有术语 established；原创灵感 original；个人词库 ID。' }, dimensionLibraries: { type: 'object', description: '按常规维度指定词库 ID，覆盖 libraryId；仅允许已启用维度，特色始终全局独立。', properties: Object.fromEntries(state.catalog.dimensions.filter(d => d.id !== 'feature').map(d => [d.id, { type: 'string' }])), additionalProperties: false }, dimensions: { type: 'array', items: { type: 'string', enum: state.catalog.dimensions.map(d => d.id) }, minItems: 1, maxItems: 9, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'] }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5], default: 2 }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random', 'cool', 'warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true }, execute: input => performDraw(input, { tool: true }) },
   ];
   for (const definition of definitions) { try { await document.modelContext.registerTool(definition, { signal: lifecycle.signal }); } catch (error) { console.warn('浏览器工具注册不可用；HTTP 接口不受影响。', error); } }
 }
@@ -595,6 +608,8 @@ async function init() {
     state.boardOrder = state.catalog.dimensions.map(d => d.id);
     try {
       state.libraryId = localStorage.getItem('formlex.libraryId') ?? 'established';
+      const savedLibraries = JSON.parse(localStorage.getItem('formlex.dimensionLibraries') ?? '{}');
+      if (savedLibraries && typeof savedLibraries === 'object' && !Array.isArray(savedLibraries)) state.dimensionLibraries = Object.fromEntries(Object.entries(savedLibraries).filter(([d, id]) => regularDimensions().some(dim => dim.id === d) && typeof id === 'string'));
       const savedCount = localStorage.getItem('formlex.countPerDimension');
       state.countPerDimension = ['1','2','3','4','5'].includes(savedCount) ? Number(savedCount) : savedCount === 'random' ? 'random' : 2;
       if (localStorage.getItem('formlex.featureEnabled') === 'true') state.selected.push('feature');

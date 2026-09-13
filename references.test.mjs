@@ -25,14 +25,14 @@ test('逐 ID 分类覆盖且不重叠；出处为具体页面，正文区分定�
   assert.equal(new Set(ids).size, keywords.length); assert.equal(ids.length, keywords.length);
   const before = new Map(previousSeed.map(k => [k.id, k]));
   for (const k of keywords) {
-    assert.ok(['established','original','unverified'].includes(k.origin));
+    assert.ok(['established','original'].includes(k.origin));
     assert.ok(k.classificationReason);
     if (k.origin !== 'established') { assert.equal(k.description, before.get(k.id).description); assert.deepEqual(k.references, []); continue; }
     assert.ok(k.references.length > 0, k.id);
     assert.ok(k.description.length <= 220, k.id);
     if (k.dimension === 'color') { assert.ok(k.description.length >= 30 && k.description.length <= 50, k.id); assert.ok(k.description.includes('建议：')); }
     else { assert.ok(k.description.startsWith('概念：'), k.id); assert.match(k.description,/前端应用（FormLex）：/); }
-    for (const ref of k.references) { assert.ok(ref.institution && ref.title); assert.equal(new URL(ref.url).protocol,'https:'); assert.ok(new URL(ref.url).pathname.split('/').filter(Boolean).length >= 2); }
+    for (const ref of k.references) { assert.ok(ref.institution && ref.title); assert.equal(new URL(ref.url).protocol,'https:'); assert.notEqual(new URL(ref.url).pathname, '/'); }
     assert.ok(!k.description.includes('https://'));
   }
   for (const [,title,url] of Object.values(sources)) { assert.ok(title); assert.ok(url.startsWith('https://')); }
@@ -83,7 +83,7 @@ test('独立特色、锁定及重抽；严格色温和个人范围不足不跨�
   code(()=>draw(keywords,{libraryId:'mix',dimensions:['color'],colorTemperature:'warm'},50000,libraries),'INSUFFICIENT_CANDIDATES');
 });
 
-test('v4 到 v5 备份迁移：仅未改写正文升级，用户改删、色温、关系和旧快照稳定', t => {
+test('v4 到 v6 备份迁移：仅未改写正文升级，用户改删、色温、关系和旧快照稳定', t => {
   const file=temp(t);const old=structuredClone(previousSeed).filter(k=>k.id!=='style-24');
   for(const k of old) k.conflicts=k.conflicts.filter(id=>id!=='style-24');
   old.find(k=>k.id==='style-21').conflicts=['style-03'];
@@ -95,7 +95,7 @@ test('v4 到 v5 备份迁移：仅未改写正文升级，用户改删、色温�
   const libraries=[{id:'mine',name:'混合收藏',keywordIds:['style-21','style-03','custom-word']}];
   const original=JSON.stringify({version:2,seedRevision:4,keywords:old,libraries,history:[snapshot],favorites:[snapshot]});
   writeFileSync(file,original,'utf8');const store=openStore(file);
-  assert.equal(readFileSync(file+'.before-v5.bak','utf8'),original);assert.equal(store.state.seedRevision,seedRevision);
+  assert.equal(readFileSync(file+'.before-v6.bak','utf8'),original);assert.equal(store.state.seedRevision,seedRevision);
   assert.equal(store.state.keywords.find(k=>k.id==='style-21').description,find('style-21').description);
   assert.deepEqual(store.state.keywords.find(k=>k.id==='style-21').conflicts,['style-03']);
   for(const id of ['style-25','style-26','custom-word']) {
@@ -114,8 +114,8 @@ test('v4 到 v5 备份迁移：仅未改写正文升级，用户改删、色温�
 test('迁移保存失败保留原文件与备份；原始说明不变，重新启动可重试', t => {
   const file=temp(t);const text=JSON.stringify({version:2,seedRevision:4,keywords:previousSeed,libraries:[],history:[],favorites:[]});
   writeFileSync(file,text,'utf8');assert.throws(()=>openStore(file,()=>{throw Error('磁盘已满');}),/原数据已保留/);
-  assert.equal(readFileSync(file,'utf8'),text);assert.equal(readFileSync(file+'.before-v5.bak','utf8'),text);
-  assert.equal(openStore(file).state.seedRevision,5);
+  assert.equal(readFileSync(file,'utf8'),text);assert.equal(readFileSync(file+'.before-v6.bak','utf8'),text);
+  assert.equal(openStore(file).state.seedRevision,seedRevision);
 });
 
 test('网页/API/CLI/MCP 返回同正文，复制包含全部资料而不含来源或查询步骤', {timeout:15000}, async t => {

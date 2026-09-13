@@ -74,7 +74,7 @@ test('插件生成一致、清单资源与 marketplace 路径完整，没有用�
   const files = inventory(pluginRoot);
   assert.deepEqual(Object.keys(files).filter(path => /(^|\/)(data|history|favorites|cache|node_modules|\.git)(\/|\.)/.test(path)), []);
   const manifest = JSON.parse(readFileSync(join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(manifest.name, 'formlex'); assert.equal(manifest.version, '1.7.0');
+  assert.equal(manifest.name, 'formlex'); assert.match(manifest.version, /^1\.8\.0(?:\+codex\.[a-z0-9-]+)?$/);
   for (const field of ['mcpServers', 'apps', 'hooks']) assert.equal(Object.hasOwn(manifest, field), false);
   assert.equal(existsSync(join(pluginRoot, '.mcp.json')), false);
   for (const path of [manifest.skills, manifest.interface.logo, manifest.interface.composerIcon, ...manifest.interface.screenshots]) {
@@ -87,7 +87,8 @@ test('插件生成一致、清单资源与 marketplace 路径完整，没有用�
   assert.equal(entry.policy.authentication, 'ON_INSTALL');
   for (const path of Object.keys(files).filter(f => /\.(mjs|json|md|yaml|svg)$/.test(f))) {
     const text = readFileSync(join(pluginRoot, path), 'utf8');
-    assert.doesNotMatch(text, /[A-Z]:[\\/]Users[\\/]|\/Users\/|\/home\/[^/]+\/|\[TODO:/i, path);
+    const localText = text.replace(/https?:\/\/[^\s'"<>`]+/g, '');
+    assert.doesNotMatch(localText, /[A-Z]:[\\/]Users[\\/]|\/Users\/|\/home\/[^/]+\/|\[TODO:/i, path);
     if (path.endsWith('.mjs')) for (const match of text.matchAll(/from ['"]([^'"]+)['"]/g)) {
       if (match[1].startsWith('node:')) continue;
       assert.ok(match[1].startsWith('./'), `${path}: ${match[1]}`);

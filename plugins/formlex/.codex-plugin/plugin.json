@@ -1,7 +1,7 @@
 {
   "name": "formlex",
-  "version": "1.7.0",
-  "description": "用完整设计规则落实 1,424 条美术线索：全部词条必选、可安排主次，无法兼容的冲突主动询问。",
+  "version": "1.8.0+codex.20260913093004",
+  "description": "\u7528\u5b8c\u6574\u8bbe\u8ba1\u89c4\u5219\u843d\u5b9e 1,424 \u6761\u7f8e\u672f\u7ebf\u7d22\uff1a\u5168\u90e8\u8bcd\u6761\u5fc5\u9009\u3001\u53ef\u5b89\u6392\u4e3b\u6b21\uff0c\u65e0\u6cd5\u517c\u5bb9\u7684\u51b2\u7a81\u4e3b\u52a8\u8be2\u95ee\u3002",
   "author": {
     "name": "Inderwish",
     "url": "https://github.com/Inderwish"
@@ -17,9 +17,9 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "FormLex · 形意词库",
-    "shortDescription": "抽取美术术语，构建更有辨识度的前端。",
-    "longDescription": "内置 1,424 条设计线索，默认离线抽取 16 条。将整组词条逐条落实到真实视觉与交互；用户选择四档重构强度和必须保留范围，普通、重点和主导决定表现强度。交付逐词核查表，让主导表达服务真正重要的信息和操作；无法兼容的冲突主动询问。网页与 Skill 共用执行规则，个人词库与 MCP 保持可选。",
+    "displayName": "FormLex \u00b7 \u5f62\u610f\u8bcd\u5e93",
+    "shortDescription": "\u62bd\u53d6\u7f8e\u672f\u672f\u8bed\uff0c\u6784\u5efa\u66f4\u6709\u8fa8\u8bc6\u5ea6\u7684\u524d\u7aef\u3002",
+    "longDescription": "\u5185\u7f6e 1,424 \u6761\u8bbe\u8ba1\u7ebf\u7d22\uff0c\u9ed8\u8ba4\u79bb\u7ebf\u62bd\u53d6 16 \u6761\u3002\u5c06\u6574\u7ec4\u8bcd\u6761\u9010\u6761\u843d\u5b9e\u5230\u771f\u5b9e\u89c6\u89c9\u4e0e\u4ea4\u4e92\uff1b\u7528\u6237\u9009\u62e9\u56db\u6863\u91cd\u6784\u5f3a\u5ea6\u548c\u5fc5\u987b\u4fdd\u7559\u8303\u56f4\uff0c\u666e\u901a\u3001\u91cd\u70b9\u548c\u4e3b\u5bfc\u51b3\u5b9a\u8868\u73b0\u5f3a\u5ea6\u3002\u4ea4\u4ed8\u9010\u8bcd\u6838\u67e5\u8868\uff0c\u8ba9\u4e3b\u5bfc\u8868\u8fbe\u670d\u52a1\u771f\u6b63\u91cd\u8981\u7684\u4fe1\u606f\u548c\u64cd\u4f5c\uff1b\u65e0\u6cd5\u517c\u5bb9\u7684\u51b2\u7a81\u4e3b\u52a8\u8be2\u95ee\u3002\u7f51\u9875\u4e0e Skill \u5171\u7528\u6267\u884c\u89c4\u5219\uff0c\u4e2a\u4eba\u8bcd\u5e93\u4e0e MCP \u4fdd\u6301\u53ef\u9009\u3002",
     "developerName": "Inderwish",
     "category": "Productivity",
     "capabilities": [
@@ -27,9 +27,9 @@
     ],
     "websiteURL": "https://github.com/Inderwish/formlex",
     "defaultPrompt": [
-      "使用 $formlex-design 大胆重构当前页面，保留业务功能并验证效果。",
-      "使用 $formlex-design 给出三个差异明显的设计方向，只输出方案。",
-      "使用 $formlex-design，在现有品牌色和技术栈内优化页面。"
+      "\u4f7f\u7528 $formlex-design \u5927\u80c6\u91cd\u6784\u5f53\u524d\u9875\u9762\uff0c\u4fdd\u7559\u4e1a\u52a1\u529f\u80fd\u5e76\u9a8c\u8bc1\u6548\u679c\u3002",
+      "\u4f7f\u7528 $formlex-design \u7ed9\u51fa\u4e09\u4e2a\u5dee\u5f02\u660e\u663e\u7684\u8bbe\u8ba1\u65b9\u5411\uff0c\u53ea\u8f93\u51fa\u65b9\u6848\u3002",
+      "\u4f7f\u7528 $formlex-design\uff0c\u5728\u73b0\u6709\u54c1\u724c\u8272\u548c\u6280\u672f\u6808\u5185\u4f18\u5316\u9875\u9762\u3002"
     ],
     "brandColor": "#2957CB",
     "composerIcon": "./assets/icon.svg",

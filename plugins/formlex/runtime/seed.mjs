@@ -456,7 +456,7 @@ const additions = {
 };
 for (const d of defaultDimensions) entries[d.id].push(...additions[d.id]);
 for (const d of defaultDimensions) entries[d.id].push(...(extraEntries[d.id] ?? []));
-export const seedRevision = 5;
+export const seedRevision = 6;
 
 const previousKeywords = defaultDimensions.flatMap(d => entries[d.id].map(([name, description], i) => ({
   id: `${d.id}-${String(i + 1).padStart(2, '0')}`, dimension: d.id, name, description, conflicts: [],
@@ -510,9 +510,9 @@ export const previousSeed = structuredClone(keywords);
 for (const keyword of keywords) {
   const note = termNotes[keyword.id];
   keyword.origin = note ? 'established' : classification.original.includes(keyword.id) ? 'original' : 'unverified';
-  keyword.classificationReason = classification.basis[keyword.origin];
+  keyword.classificationReason = classification.decisions?.[keyword.id] ?? classification.basis[keyword.origin];
   keyword.references = note ? structuredClone(note.references) : [];
   if (note) keyword.description = keyword.dimension === 'color'
     ? `${note.definition}建议：${note.application}`
-    : `概念：${note.definition}\n前端应用（FormLex）：${note.application}`;
+    : `概念：${note.definition}\n前端应用（FormLex）：${note.application ?? keyword.description}${note.boundary ?? ''}`;
 }
