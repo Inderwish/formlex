@@ -29,7 +29,7 @@ export async function runCli(argv) {
     } });
     source = values.source ?? 'builtin';
     if (!['builtin', 'workspace'].includes(source)) throw new AppError(400, 'source 必须是 builtin 或 workspace。');
-    if (values.help) return { source, historySaved: false, result: { usage: 'node cli.mjs <libraries|search|draw> [--source builtin|workspace] [--input 参数.json] [--url http://127.0.0.1:3000]', defaults: { source: 'builtin', dimensions: '原八维', mode: 'coordinated', countPerDimension: 'random (2–3)', colorTemperature: 'random', feature: false }, note: 'builtin 离线且不保存历史；workspace 需先启动工作台，抽取保存共享历史。--input 为 UTF-8 JSON 对象，最大 64 KB。' } };
+    if (values.help) return { source, historySaved: false, result: { usage: 'node cli.mjs <libraries|search|draw> [--source builtin|workspace] [--input 参数.json] [--url http://127.0.0.1:3000]', defaults: { source: 'builtin', dimensions: '原八维', mode: 'coordinated', countPerDimension: 2, colorTemperature: 'random', feature: false }, note: 'builtin 离线且不保存历史；workspace 需先启动工作台，抽取保存共享历史。--input 为 UTF-8 JSON 对象，最大 64 KB。' } };
     const command = positionals[0];
     if (positionals.length !== 1 || !['libraries', 'search', 'draw'].includes(command)) throw new AppError(400, '请指定 libraries、search 或 draw，使用 --help 查看用法。');
     if (source === 'builtin' && values.url !== undefined) throw new AppError(400, '指定 --url 时必须显式使用 --source workspace；builtin 始终离线。');

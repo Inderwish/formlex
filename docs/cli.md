@@ -58,7 +58,7 @@ node runtime/cli.mjs draw --input draw.json
 | `libraryId` | 默认 `all`，主题或个人词库 ID 由 libraries 提供。 |
 | `dimensions` | `style` 风格、`color` 色彩、`layout` 布局、`type` 字体排版、`shape` 形状、`material` 材质、`motion` 动效、`interaction` 交互、`feature` 特色。默认原八维，可仅选特色。 |
 | `mode` | `coordinated`（默认）或 `free`。协调只排除明确配置的互斥关系。 |
-| `countPerDimension` | `random`（默认，每维随机 2–3）或整数 1–5；不控制特色。 |
+| `countPerDimension` | 整数 1–5，默认 2；也可显式选 `random`（每维随机 2–3）；不控制特色。 |
 | `featureCount` | 整数 1–5，默认 1。只有 dimensions 包含 feature 时启用特色。 |
 | `colorTemperature` | `random`（默认，不限分类）、`cool`、`warm`；两种模式均严格筛选。 |
 | `locked` | 维度 ID 到词条 ID 数组的映射，锁定该维度整组及顺序；锁定数量不随数量控件更改。兼容单 ID 字符串。 |

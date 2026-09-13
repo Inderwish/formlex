@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dimensions, keywords } from './seed.mjs';
 import { draw } from './core.mjs';
-import { priorities, requirements, implementation, conflictRules, verification, sharedSkillRules, effectivePriority, retainKeywordPriorities, orderedGroups, buildDesignPrompt, buildKeywordText } from './public/design-rules.mjs';
+import { priorities, requirements, implementation, conflictRules, verification, sharedSkillRules, effectivePriority, retainKeywordPriorities, orderedGroups, buildDesignPrompt, buildKeywordText, reconstructionLevels, reconstructionRules } from './public/design-rules.mjs';
 
 const items = [
   { id: 's1', dimension: 'style', name: '未来派', description: '以斜向构图组织主要内容。' },
@@ -37,7 +37,7 @@ test('完整提示词保留每条说明及优先级，共用规则完整包含�
     assert.equal(text.split(k.description).length - 1, 1, `完整保留一次说明：${k.id}`);
     assert.ok(text.includes(`• ${k.name}（`));
   }
-  for (const section of [requirements, implementation, conflictRules, verification]) assert.ok(text.includes(section));
+  for (const section of [requirements, reconstructionRules, implementation, conflictRules, verification]) assert.ok(text.includes(section));
   assert.ok(text.indexOf('## 材质') < text.indexOf('## 风格'));
   assert.ok(text.includes('冷蓝（重点）'));
   assert.equal(text.includes('runtime/cli.mjs'), false);
@@ -95,6 +95,27 @@ test('面向 agent 的文本只输出设计信息，不泄露抽取元数据且�
   assert.equal(JSON.stringify(snapshot), before);
   assert.ok(before.includes('style-63'));
   assert.equal(buildKeywordText({ ...snapshot, items: [] }, dimensions), '');
+});
+
+test('四档强度只展开所选规则，保留范围原样输入，空设置沿用对话且不污染记录', () => {
+  const before = structuredClone(record);
+  const preserve = '保留品牌色 #123456、16px 正文及既有支付能力。\n允许调整导航布局。';
+  for (const level of reconstructionLevels) {
+    const draft = { reconstruction: level.id, preserve, dimensionPriorities: { material: 'dominant' } };
+    const text = buildDesignPrompt(record, dimensions, draft);
+    assert.ok(text.includes(`重构强度：${level.name}\n${level.rule}`));
+    assert.ok(text.includes(preserve));
+    assert.ok(text.includes('液态金属（主导）'));
+    for (const other of reconstructionLevels.filter(other => other.id !== level.id)) assert.ok(!text.includes(other.rule));
+    for (const k of record.items) assert.ok(text.includes(k.description));
+  }
+  const empty = buildDesignPrompt(record, dimensions);
+  assert.ok(empty.includes('重构任务仍未明确强度时先询问'));
+  assert.ok(!empty.includes(preserve));
+  for (const level of reconstructionLevels) assert.ok(!empty.includes(level.rule));
+  assert.equal(buildDesignPrompt(record, dimensions, { reconstruction: 'obsolete' }), empty);
+  assert.equal(buildKeywordText(record, dimensions).includes(preserve), false);
+  assert.deepEqual(record, before);
 });
 
 process.on('exit', code => { if (code === 0) console.log('DONE'); });

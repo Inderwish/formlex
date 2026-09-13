@@ -74,7 +74,7 @@ test('插件生成一致、清单资源与 marketplace 路径完整，没有用�
   const files = inventory(pluginRoot);
   assert.deepEqual(Object.keys(files).filter(path => /(^|\/)(data|history|favorites|cache|node_modules|\.git)(\/|\.)/.test(path)), []);
   const manifest = JSON.parse(readFileSync(join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(manifest.name, 'formlex'); assert.equal(manifest.version, '1.5.1');
+  assert.equal(manifest.name, 'formlex'); assert.equal(manifest.version, '1.6.0');
   for (const field of ['mcpServers', 'apps', 'hooks']) assert.equal(Object.hasOwn(manifest, field), false);
   assert.equal(existsSync(join(pluginRoot, '.mcp.json')), false);
   for (const path of [manifest.skills, manifest.interface.logo, manifest.interface.composerIcon, ...manifest.interface.screenshots]) {
@@ -120,7 +120,9 @@ test('隔离插件：默认八维、所有主题范围与严格冷暖、特色�
   assert.equal(initial.source, 'builtin'); assert.equal(initial.historySaved, false);
   assert.equal(initial.result.mode, 'coordinated'); assert.equal(initial.result.colorTemperature, 'random');
   assert.equal(initial.result.featureSource, null);
-  for (const dimension of defaultDimensions) assert.ok([2, 3].includes(grouped(initial.result)[dimension.id].length));
+  for (const dimension of defaultDimensions) assert.equal(grouped(initial.result)[dimension.id].length, 2);
+  assert.equal(initial.result.items.length, 16);
+  assert.equal(initial.result.countPerDimension, 2);
   assert.equal(Object.keys(grouped(initial.result)).length, 8);
   for (const a of initial.result.items) for (const b of initial.result.items) if (a.id !== b.id) assert.equal(conflicts(a, b), false);
   const libraries = (await cli('libraries')).result.libraries;

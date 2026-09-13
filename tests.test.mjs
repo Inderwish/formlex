@@ -141,10 +141,14 @@ test('HTTP 边界：参数、同源、请求大小、静态资源和保存失败
   assert.equal(app.store.state.history.length, count);
 });
 
-test('多词抽取默认每维度 2–3 条、不重复，协调模式同时检查维度内及维度间冲突', () => {
+test('默认每维度 2 条共 16 条；显式随机仍为 2–3 条，协调模式排除组内外冲突', () => {
+  const initial = drawMany(keywords, {});
+  assert.equal(initial.items.length, 16);
+  assert.equal(initial.countPerDimension, 2);
+  for (const d of dimensions) assert.equal(initial.items.filter(k => k.dimension === d.id).length, 2);
   const observed = new Set();
   for (let i = 0; i < 60; i++) {
-    const result = drawMany(keywords, {});
+    const result = drawMany(keywords, { countPerDimension: 'random' });
     assert.ok(result.items.length >= 16 && result.items.length <= 24);
     assert.equal(new Set(result.items.map(k => k.id)).size, result.items.length);
     for (const d of dimensions) { const count = result.items.filter(k => k.dimension === d.id).length; assert.ok(count === 2 || count === 3); observed.add(count); }

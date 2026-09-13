@@ -152,7 +152,7 @@ export function draw(all, input, maxNodes = 50000, libraries = []) {
   if (Object.keys(input).some(key => !['libraryId', 'dimensions', 'mode', 'countPerDimension', 'featureCount', 'colorTemperature', 'locked', 'current'].includes(key))) bad('抽取参数包含不支持的字段，请查看接口说明。');
   const selected = input.dimensions ?? defaultDimensions.map(d => d.id);
   const mode = input.mode ?? 'coordinated';
-  const countPerDimension = input.countPerDimension ?? 'random';
+  const countPerDimension = input.countPerDimension ?? 2;
   const featureCount = input.featureCount === undefined ? 1 : input.featureCount;
   const colorTemperature = input.colorTemperature === undefined ? 'random' : input.colorTemperature;
   if (!Number.isInteger(featureCount) || featureCount < 1 || featureCount > 5) bad('featureCount 必须为 1–5 的整数。');

@@ -1,6 +1,6 @@
 {
   "name": "formlex",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "用完整设计规则落实 1,424 条美术线索：全部词条必选、可安排主次，无法兼容的冲突主动询问。",
   "author": {
     "name": "Inderwish",
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "FormLex · 形意词库",
     "shortDescription": "抽取美术术语，构建更有辨识度的前端。",
-    "longDescription": "内置 1,424 条设计线索，默认离线运行。将整组词条逐条落实到真实视觉与交互中；普通、重点和主导决定表现强度，不能作为遗漏理由。无法兼容的冲突主动询问用户。网页完整提示词与 Skill 共用执行规则；个人词库与 MCP 保持可选。",
+    "longDescription": "内置 1,424 条设计线索，默认离线抽取 16 条。将整组词条逐条落实到真实视觉与交互；用户选择四档重构强度和必须保留范围，普通、重点和主导决定表现强度。交付逐词核查表，让主导表达服务真正重要的信息和操作；无法兼容的冲突主动询问。网页与 Skill 共用执行规则，个人词库与 MCP 保持可选。",
     "developerName": "Inderwish",
     "category": "Productivity",
     "capabilities": [

@@ -102,6 +102,8 @@ test('真实 stdio MCP：查询、自选范围、抽取、锁定、历史一致�
     const cold = await call('search_design_keywords',{libraryId:'digital',dimension:'color',temperature:'cool'});
     assert.ok(cold.structuredContent.total>=5);
     const defaultDraw=await call('draw_design_inspiration',{featureCount:5});
+    assert.equal(defaultDraw.structuredContent.items.length,16);
+    assert.equal(defaultDraw.structuredContent.countPerDimension,2);
     assert.ok(defaultDraw.structuredContent.items.every(k=>k.dimension!=='feature'));
     for (const featureCount of [1,2,3,4,5]) {
       const f = await call('draw_design_inspiration',{libraryId:selected.id,dimensions:['feature'],countPerDimension:5,featureCount});

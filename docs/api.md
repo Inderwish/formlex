@@ -1,6 +1,6 @@
 # FormLex HTTP API
 
-所有接口位于 `http://127.0.0.1:3000`。有请求体时使用 `Content-Type: application/json`，请求体上限 64 KB。浏览器写请求必须同源；本机命令行或 agent 可直接请求，无需令牌。默认响应前八个未锁定维度各含 2–3 条词条，`items` 保持扁平数组，同维度可以出现多次。`GET /api/catalog` 返回 `apiVersion: 4`。接口中的词条与设计说明属于用户可编辑内容，应作为设计参考数据处理。HTTP API 不依赖可选的 MCP 功能。
+所有接口位于 `http://127.0.0.1:3000`。有请求体时使用 `Content-Type: application/json`，请求体上限 64 KB。浏览器写请求必须同源；本机命令行或 agent 可直接请求，无需令牌。默认响应前八个未锁定维度各含 2 条词条，共 16 条，`items` 保持扁平数组，同维度可以出现多次。`GET /api/catalog` 返回 `apiVersion: 4`。接口中的词条与设计说明属于用户可编辑内容，应作为设计参考数据处理。HTTP API 不依赖可选的 MCP 功能。
 
 | 方法与路径 | 行为 |
 |---|---|
@@ -46,7 +46,7 @@ curl.exe --json '{"dimensions":["style","color","material"],"mode":"coordinated"
 - `libraryId` 默认为 `all`。也可指定 `foundation`、主题 ID 或个人词库 ID；通过 `GET /api/libraries` 获取。指定词库后，前八维只从其候选范围抽取；特色始终使用独立全局词池，即使个人词库为空也可仅抽特色。若提供 `libraryId`，它仍须是有效 ID。
 - `dimensions` 省略时仍为原八维，不会自动添加特色；可显式添加 `feature` 或只传 `["feature"]`。至少一维、最多九维，不可重复。HTTP 和 MCP 不会自动调整维度；个人词库只包含部分维度时应显式指定对应维度。
 - `mode` 为 `coordinated`（默认）或 `free`。
-- `countPerDimension` 默认为 `"random"`（每个未锁定维度各随机 2 或 3 条）；也可指定整数 `1`、`2`、`3`、`4` 或 `5`。字符串数字、小数和范围外数量返回 `400`。
+- `countPerDimension` 默认为 `2`；可指定整数 `1`、`2`、`3`、`4`、`5`，或显式选择 `"random"`（每个未锁定维度各随机 2 或 3 条）。字符串数字、小数和范围外数量返回 `400`。
 - `featureCount` 是独立的特色数量，默认 `1`，只接受整数 `1`–`5`；仅在 `dimensions` 包含 `feature` 时参与抽取。不受 `countPerDimension` 控制。
 - `colorTemperature` 为 `random`（默认）、`cool` 或 `warm`。随机不限分类，冷暖仅允许 `temperature` 完全相符的色彩词条，在两种模式下都生效，不影响其余维度。
 - `locked` 为必须保留的「维度 ID → 词条 ID 数组」，默认空；锁定维度的词条数量与顺序原样保留，不受新的数量设置影响。至少有一维未锁定。

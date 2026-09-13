@@ -1,4 +1,4 @@
-import { priorities, priority, effectivePriority, retainKeywordPriorities, buildDesignPrompt, buildKeywordText } from './design-rules.mjs';
+import { priorities, priority, effectivePriority, retainKeywordPriorities, buildDesignPrompt, buildKeywordText, reconstructionLevels } from './design-rules.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -22,9 +22,9 @@ const paths = {
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] ?? paths.grid}</svg>`;
 $$('[data-icon]').forEach(node => { node.innerHTML = icon(node.dataset.icon); });
 
-const state = { catalog: { dimensions: [], keywords: [], libraries: [] }, selected: [], libraryId: 'all', libraryLimit: 80, collectionLimit: 80, collectionSelection: new Set(), collectionBusy: false, mode: 'coordinated', countPerDimension: 'random', locked: {}, result: null,
+const state = { catalog: { dimensions: [], keywords: [], libraries: [] }, selected: [], libraryId: 'all', libraryLimit: 80, collectionLimit: 80, collectionSelection: new Set(), collectionBusy: false, mode: 'coordinated', countPerDimension: 2, locked: {}, result: null,
   history: [], favorites: [], view: 'draw', recordKind: 'favorites', format: 'prompt', busy: false, featureCount: 1, colorTemperature: 'random',
-  brief: { task: '', dimensionPriorities: {}, keywordPriorities: {} },
+  brief: { task: '', reconstruction: '', preserve: '', dimensionPriorities: {}, keywordPriorities: {} },
   editing: null, conflictSelection: new Set(), detail: null, framing: 'overview', focusDimension: 'style', spacing: 'balanced', measuring: false,
   boardOrder: [], curating: false, activeKeyword: null, inspecting: false, pendingDraw: null, pendingCount: 0 };
 const dim = id => state.catalog.dimensions.find(d => d.id === id);
@@ -37,6 +37,8 @@ const currentPrompt = () => buildDesignPrompt(state.result, state.catalog.dimens
 const priorityOptions = () => priorities.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
 // Draft requirements and priorities are intentionally separate from saved records and browser storage.
 $('#brief-task').value = '';
+$('#brief-preserve').value = '';
+$('#reconstruction-options').innerHTML = reconstructionLevels.map(level => `<button type="button" data-reconstruction="${level.id}" aria-pressed="false"><strong>${level.name}</strong><span>${level.summary}</span></button>`).join('');
 const modeName = mode => mode === 'coordinated' ? '协调模式' : '自由模式';
 const temperatureName = value => ({ random: '随机（不限冷暖）', cool: '冷色调', warm: '暖色调', neutral: '中性', mixed: '混合', unspecified: '未分类' })[value ?? 'unspecified'];
 const regularDimensions = () => state.catalog.dimensions.filter(d => d.id !== 'feature');
@@ -465,6 +467,16 @@ on('#copy-text', 'click', () => copy(currentPrompt()));
 on('#copy-output', 'click', () => copy($('#output-preview').textContent));
 for (const format of ['prompt', 'text', 'json']) on(`#format-${format}`, 'click', () => { state.format = format; renderOutput(); });
 on('#brief-task', 'input', () => { state.brief.task = $('#brief-task').value; renderOutput(); });
+on('#brief-preserve', 'input', () => { state.brief.preserve = $('#brief-preserve').value; renderOutput(); });
+function setReconstruction(value) {
+  state.brief.reconstruction = value;
+  $$('[data-reconstruction]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.reconstruction === value)));
+  $('#reconstruction-clear').disabled = !value;
+  $('#reconstruction-hint').textContent = reconstructionLevels.find(level => level.id === value)?.rule ?? '未选择时结合接收对话；重构任务仍未明确强度，agent 会先询问。新建页面无需选择。';
+  renderOutput();
+}
+on('#reconstruction-options', 'click', event => { const button = event.target.closest('[data-reconstruction]'); if (button) setReconstruction(button.dataset.reconstruction); });
+on('#reconstruction-clear', 'click', () => setReconstruction(''));
 on('#priority-reset', 'click', () => {
   state.brief.dimensionPriorities = {}; state.brief.keywordPriorities = {};
   renderPriorities(); renderOutput(); toast('全部恢复普通，所有词条仍须落实');
@@ -542,7 +554,7 @@ async function registerBrowserTools() {
   const idMap = { type: 'object', additionalProperties: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 5, uniqueItems: true }] } };
   const definitions = [
     { name: 'read_design_catalog', description: '读取八个常规维度、独立特色池、色温分类及显式互斥关系。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: true }, execute: () => api('/api/catalog') },
-    { name: 'draw_design_inspiration', description: '默认抽取八维，每维度 1–5 条或随机 2–3 条；显式添加 feature 从独立池取 featureCount 条。colorTemperature 严格筛选色彩，成功保存到历史并更新网页。锁定整组保留。', inputSchema: { type: 'object', properties: { libraryId: { type: 'string' }, dimensions: { type: 'array', items: { type: 'string', enum: state.catalog.dimensions.map(d => d.id) }, minItems: 1, maxItems: 9, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'] }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5] }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random', 'cool', 'warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true }, execute: input => performDraw(input, { tool: true }) },
+    { name: 'draw_design_inspiration', description: '默认抽取八维，每维 2 条，共 16 条；可选每维度 1–5 条或随机 2–3 条。显式添加 feature 从独立池取 featureCount 条。colorTemperature 严格筛选色彩，成功保存到历史并更新网页。锁定整组保留。', inputSchema: { type: 'object', properties: { libraryId: { type: 'string' }, dimensions: { type: 'array', items: { type: 'string', enum: state.catalog.dimensions.map(d => d.id) }, minItems: 1, maxItems: 9, uniqueItems: true }, mode: { type: 'string', enum: ['coordinated', 'free'] }, countPerDimension: { enum: ['random', 1, 2, 3, 4, 5], default: 2 }, featureCount: { type: 'integer', minimum: 1, maximum: 5, default: 1 }, colorTemperature: { type: 'string', enum: ['random', 'cool', 'warm'], default: 'random' }, locked: idMap, current: idMap }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: true }, execute: input => performDraw(input, { tool: true }) },
   ];
   for (const definition of definitions) { try { await document.modelContext.registerTool(definition, { signal: lifecycle.signal }); } catch (error) { console.warn('浏览器工具注册不可用；HTTP 接口不受影响。', error); } }
 }
@@ -556,7 +568,7 @@ async function init() {
     try {
       state.libraryId = localStorage.getItem('formlex.libraryId') ?? 'all';
       const savedCount = localStorage.getItem('formlex.countPerDimension');
-      state.countPerDimension = ['1','2','3','4','5'].includes(savedCount) ? Number(savedCount) : 'random';
+      state.countPerDimension = ['1','2','3','4','5'].includes(savedCount) ? Number(savedCount) : savedCount === 'random' ? 'random' : 2;
       if (localStorage.getItem('formlex.featureEnabled') === 'true') state.selected.push('feature');
       const featureCount = localStorage.getItem('formlex.featureCount');
       state.featureCount = ['1','2','3','4','5'].includes(featureCount) ? Number(featureCount) : 1;
