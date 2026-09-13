@@ -5,7 +5,7 @@
     "type": "git",
     "url": "https://github.com/Inderwish/formlex.git"
   },
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": true,
   "type": "module",
   "scripts": {

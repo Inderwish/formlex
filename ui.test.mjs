@@ -222,7 +222,8 @@ test('逐维词库选择记忆与覆盖、失效提示；复制强度仅含执�
     for(const level of reconstructionLevels){
       await page.locator(`[data-reconstruction="${level.id}"]`).click();await page.locator('#copy-text').click();
       const prompt=await page.evaluate(()=>window.copied);
-      assert.ok(prompt.includes(level.rule));assert.doesNotMatch(prompt,/重构强度是可选|每档强度|用户已经选择|## 重构强度/);
+      assert.ok(prompt.includes(`## 重构要求 · ${level.name}\n\n${level.rule}`));assert.doesNotMatch(prompt,/重构强度是可选|每档强度|用户已经选择|## 重构强度/);
+      assert.match(await page.locator('#toast').textContent(),new RegExp(`包含「${level.name}」重构要求`));
       for(const other of reconstructionLevels.filter(l=>l.id!==level.id)) assert.ok(!prompt.includes(other.rule));
     }
     if(process.env.FORMLEX_PREVIEWS==='1'){
@@ -230,7 +231,7 @@ test('逐维词库选择记忆与覆盖、失效提示；复制强度仅含执�
       await page.locator('.brief-scope').screenshot({path:resolve('preview/reconstruction-mobile.png')});
       await page.setViewportSize({width:1440,height:1000});
     }
-    await page.locator('#reconstruction-clear').click();await page.locator('#copy-text').click();assert.ok(!(await page.evaluate(()=>window.copied)).includes('## 执行范围'));
+    await page.locator('#reconstruction-clear').click();await page.locator('#copy-text').click();assert.ok(!(await page.evaluate(()=>window.copied)).includes('## 重构要求'));
     await page.locator('#brief-preserve').fill('保留错误正文');await page.locator('#copy-text').click();assert.match(await page.evaluate(()=>window.copied),/必须保留：保留错误正文/);
     await page.locator('[data-dimension-library="style"]').selectOption('one');await page.locator('#draw-button').click();await page.locator('#draw-error').waitFor();
     assert.match(await page.locator('#draw-error').textContent(),/只有 1 条候选/);assert.deepEqual(app.store.state.history[0],mixed);

@@ -351,8 +351,8 @@ async function performDraw(input = drawInput(), { tool = false } = {}) {
   } catch (error) { showError('#draw-error', error.message); throw error; }
   finally { state.busy = false; updateDrawControls(); updateFavoriteButton(); }
 }
-async function copy(value) {
-  try { await navigator.clipboard.writeText(value); toast('已复制，可以交给 agent 了'); }
+async function copy(value, message = '已复制，可以交给 agent 了') {
+  try { await navigator.clipboard.writeText(value); toast(message); }
   catch { $('#copy-fallback').value = value; if (!$('#copy-dialog').open) $('#copy-dialog').showModal(); $('#copy-fallback').focus(); $('#copy-fallback').select(); }
 }
 async function toggleFavorite(record) {
@@ -496,8 +496,12 @@ on('#result-grid', 'click', event => {
   } else return performDraw(drawInput(button.dataset.reroll)).then(() => $(`[data-reroll="${button.dataset.reroll}"]`)?.focus()).catch(() => {});
 });
 on('#favorite-current', 'click', async () => { $('#favorite-current').disabled = true; try { await toggleFavorite(state.result); } finally { updateFavoriteButton(); } });
-on('#copy-text', 'click', () => copy(currentPrompt()));
-on('#copy-output', 'click', () => copy($('#output-preview').textContent));
+function copyPrompt() {
+  const level = reconstructionLevels.find(level => level.id === state.brief.reconstruction);
+  return copy(currentPrompt(), level ? `已复制完整提示词，包含「${level.name}」重构要求` : '已复制完整提示词，未指定重构强度');
+}
+on('#copy-text', 'click', copyPrompt);
+on('#copy-output', 'click', () => state.format === 'prompt' ? copyPrompt() : copy($('#output-preview').textContent));
 for (const format of ['prompt', 'text', 'json']) on(`#format-${format}`, 'click', () => { state.format = format; renderOutput(); });
 on('#brief-task', 'input', () => { state.brief.task = $('#brief-task').value; renderOutput(); });
 on('#brief-preserve', 'input', () => { state.brief.preserve = $('#brief-preserve').value; renderOutput(); });

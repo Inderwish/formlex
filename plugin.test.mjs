@@ -74,7 +74,7 @@ test('插件生成一致、清单资源与 marketplace 路径完整，没有用�
   const files = inventory(pluginRoot);
   assert.deepEqual(Object.keys(files).filter(path => /(^|\/)(data|history|favorites|cache|node_modules|\.git)(\/|\.)/.test(path)), []);
   const manifest = JSON.parse(readFileSync(join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(manifest.name, 'formlex'); assert.match(manifest.version, /^1\.8\.0(?:\+codex\.[a-z0-9-]+)?$/);
+  assert.equal(manifest.name, 'formlex'); assert.match(manifest.version, /^1\.8\.1(?:\+codex\.[a-z0-9-]+)?$/);
   for (const field of ['mcpServers', 'apps', 'hooks']) assert.equal(Object.hasOwn(manifest, field), false);
   assert.equal(existsSync(join(pluginRoot, '.mcp.json')), false);
   for (const path of [manifest.skills, manifest.interface.logo, manifest.interface.composerIcon, ...manifest.interface.screenshots]) {

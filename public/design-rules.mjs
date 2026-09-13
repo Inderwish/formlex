@@ -1,5 +1,5 @@
 // Shared by the browser prompt composer and the generated Codex Skill.
-export const rulesVersion = '1.8.0';
+export const rulesVersion = '1.8.1';
 export const reconstructionLevels = [
   { id: 'polish', name: '局部打磨', summary: '保留整体结构，调整指定区域', rule: '保留整体结构，改进用户指定区域的字阶、间距、配色和状态，不擅自扩大修改范围。' },
   { id: 'visual', name: '视觉重做', summary: '保留内容组织，重做视觉系统', rule: '保留内容组织，重新设计字体、配色、组件形态、材质和动效，形成完整的视觉变化。' },
@@ -70,7 +70,7 @@ export function buildKeywordText(record, dimensions) {
 }
 export function buildDesignPrompt(record, dimensions, draft = {}) {
   const level = reconstructionLevels.find(level => level.id === draft.reconstruction);
-  const scope = level ? `\n\n## 执行范围\n\n${level.rule}` : '';
+  const scope = level ? `\n\n## 重构要求 · ${level.name}\n\n${level.rule}` : '';
   const preserve = draft.preserve?.trim() ? `\n\n必须保留：${draft.preserve.trim()}` : '';
   const terms = orderedGroups(record, dimensions, draft).map(group => `## ${group.name} · ${priority(group.priority).name}\n\n` + group.items.map(k => `• ${k.name}（${priority(effectivePriority(k, draft)).name}）\n${k.description}`).join('\n\n')).join('\n\n');
   return `## 任务与硬约束\n\n${draft.task?.trim() || '结合本次对话中用户提供的页面任务与硬约束执行；任务尚不明确时，先向用户澄清必要信息。'}${preserve}${scope}\n\n## 权重与全部必选原则\n\n${requirements}\n\n${terms}\n\n## 设计与实现规则\n\n${implementation}\n\n## 冲突必须询问\n\n${conflictRules}\n\n## 逐词验收\n\n${verification}`;
